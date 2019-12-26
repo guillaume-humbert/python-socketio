@@ -1,0 +1,5 @@
+python-socketio (4.4.0-1) unstable; urgency=medium
+
+  * Initial release (Closes: #947447).
+
+ -- Paulo Henrique de Lima Santana (phls) <phls@debian.org>  Fri, 27 Dec 2019 01:31:30 +0300

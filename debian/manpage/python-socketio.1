@@ -1,0 +1,4864 @@
+.\" Man page generated from reStructuredText.
+.
+.TH "PYTHON-SOCKETIO" "1" "Dec 27, 2019" "" "python-socketio"
+.SH NAME
+python-socketio \- python-socketio Documentation
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.sp
+This projects implements Socket.IO clients and servers that can run standalone
+or integrated with a variety of Python web frameworks.
+.SH GETTING STARTED
+.SS What is Socket.IO?
+.sp
+Socket.IO is a transport protocol that enables real\-time bidirectional
+event\-based communication between clients (typically, though not always,
+web browsers) and a server. The official implementations of the client
+and server components are written in JavaScript. This package provides
+Python implementations of both, each with standard and asyncio variants.
+.SS Client Examples
+.sp
+The example that follows shows a simple Python client:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import socketio
+
+sio = socketio\&.Client()
+
+@sio.event
+def connect():
+    print(\(aqconnection established\(aq)
+
+@sio.event
+def my_message(data):
+    print(\(aqmessage received with \(aq, data)
+    sio\&.emit(\(aqmy response\(aq, {\(aqresponse\(aq: \(aqmy response\(aq})
+
+@sio.event
+def disconnect():
+    print(\(aqdisconnected from server\(aq)
+
+sio\&.connect(\(aqhttp://localhost:5000\(aq)
+sio\&.wait()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Client Features
+.INDENT 0.0
+.IP \(bu 2
+Can connect to other Socket.IO complaint servers besides the one in
+this package.
+.IP \(bu 2
+Compatible with Python 2.7 and 3.5+.
+.IP \(bu 2
+Two versions of the client, one for standard Python and another for
+asyncio.
+.IP \(bu 2
+Uses an event\-based architecture implemented with decorators that
+hides the details of the protocol.
+.IP \(bu 2
+Implements HTTP long\-polling and WebSocket transports.
+.IP \(bu 2
+Automatically reconnects to the server if the connection is dropped.
+.UNINDENT
+.SS Server Examples
+.sp
+The following application is a basic server example that uses the Eventlet
+asynchronous server:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import eventlet
+import socketio
+
+sio = socketio\&.Server()
+app = socketio\&.WSGIApp(sio, static_files={
+    \(aq/\(aq: {\(aqcontent_type\(aq: \(aqtext/html\(aq, \(aqfilename\(aq: \(aqindex.html\(aq}
+})
+
+@sio.event
+def connect(sid, environ):
+    print(\(aqconnect \(aq, sid)
+
+@sio.event
+def my_message(sid, data):
+    print(\(aqmessage \(aq, data)
+
+@sio.event
+def disconnect(sid):
+    print(\(aqdisconnect \(aq, sid)
+
+if __name__ == \(aq__main__\(aq:
+    eventlet\&.wsgi\&.server(eventlet\&.listen((\(aq\(aq, 5000)), app)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Below is a similar application, coded for \fBasyncio\fP (Python 3.5+ only) and the
+Uvicorn web server:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from aiohttp import web
+import socketio
+
+sio = socketio\&.AsyncServer()
+app = web\&.Application()
+sio\&.attach(app)
+
+async def index(request):
+    """Serve the client\-side application."""
+    with open(\(aqindex.html\(aq) as f:
+        return web\&.Response(text=f\&.read(), content_type=\(aqtext/html\(aq)
+
+@sio.event
+def connect(sid, environ):
+    print("connect ", sid)
+
+@sio.event
+async def chat_message(sid, data):
+    print("message ", data)
+    await sio\&.emit(\(aqreply\(aq, room=sid)
+
+@sio.event
+def disconnect(sid):
+    print(\(aqdisconnect \(aq, sid)
+
+app\&.router\&.add_static(\(aq/static\(aq, \(aqstatic\(aq)
+app\&.router\&.add_get(\(aq/\(aq, index)
+
+if __name__ == \(aq__main__\(aq:
+    web\&.run_app(app)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Server Features
+.INDENT 0.0
+.IP \(bu 2
+Can connect to servers running other compliant Socket.IO clients besides
+the one in this package.
+.IP \(bu 2
+Compatible with Python 2.7 and Python 3.5+.
+.IP \(bu 2
+Two versions of the server, one for standard Python and another for
+asyncio.
+.IP \(bu 2
+Supports large number of clients even on modest hardware due to being
+asynchronous.
+.IP \(bu 2
+Can be hosted on any \fI\%WSGI\fP and
+\fI\%ASGI\fP web servers includind
+\fI\%Gunicorn\fP, \fI\%Uvicorn\fP,
+\fI\%eventlet\fP and \fI\%gevent\fP\&.
+.IP \(bu 2
+Can be integrated with WSGI applications written in frameworks such as Flask, Django,
+etc.
+.IP \(bu 2
+Can be integrated with \fI\%aiohttp\fP,
+\fI\%sanic\fP and \fI\%tornado\fP
+\fBasyncio\fP applications.
+.IP \(bu 2
+Broadcasting of messages to all connected clients, or to subsets of them
+assigned to "rooms".
+.IP \(bu 2
+Optional support for multiple servers, connected through a messaging queue
+such as Redis or RabbitMQ.
+.IP \(bu 2
+Send messages to clients from external processes, such as Celery workers or
+auxiliary scripts.
+.IP \(bu 2
+Event\-based architecture implemented with decorators that hides the details
+of the protocol.
+.IP \(bu 2
+Support for HTTP long\-polling and WebSocket transports.
+.IP \(bu 2
+Support for XHR2 and XHR browsers.
+.IP \(bu 2
+Support for text and binary messages.
+.IP \(bu 2
+Support for gzip and deflate HTTP compression.
+.IP \(bu 2
+Configurable CORS responses, to avoid cross\-origin problems with browsers.
+.UNINDENT
+.SH THE SOCKET.IO CLIENT
+.sp
+This package contains two Socket.IO clients:
+.INDENT 0.0
+.IP \(bu 2
+The \fBsocketio.Client()\fP class creates a client compatible with the
+standard Python library.
+.IP \(bu 2
+The \fBsocketio.AsyncClient()\fP class creates a client compatible with
+the \fBasyncio\fP package.
+.UNINDENT
+.sp
+The methods in the two clients are the same, with the only difference that in
+the \fBasyncio\fP client most methods are implemented as coroutines.
+.SS Installation
+.sp
+To install the standard Python client along with its dependencies, use the
+following command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pip install "python\-socketio[client]"
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If instead you plan on using the \fBasyncio\fP client, then use this:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pip install "python\-socketio[asyncio_client]"
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Creating a Client Instance
+.sp
+To instantiate an Socket.IO client, simply create an instance of the
+appropriate client class:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import socketio
+
+# standard Python
+sio = socketio.Client()
+
+# asyncio
+sio = socketio.AsyncClient()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Defining Event Handlers
+.sp
+The Socket.IO protocol is event based. When a server wants to communicate with
+a client it \fIemits\fP an event. Each event has a name, and a list of
+arguments. The client registers event handler functions with the
+\fBsocketio.Client.event()\fP or \fBsocketio.Client.on()\fP decorators:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def message(data):
+    print(\(aqI received a message!\(aq)
+
+@sio.on(\(aqmy message\(aq)
+def on_message(data):
+    print(\(aqI received a message!\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In the first example the event name is obtained from the name of the
+handler function. The second example is slightly more verbose, but it
+allows the event name to be different than the function name or to include
+characters that are illegal in function names, such as spaces.
+.sp
+For the \fBasyncio\fP client, event handlers can be regular functions as above,
+or can also be coroutines:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+async def message(data):
+    print(\(aqI received a message!\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBconnect\fP, \fBconnect_error\fP and \fBdisconnect\fP events are special; they
+are invoked automatically when a client connects or disconnects from the
+server:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def connect():
+    print("I\(aqm connected!")
+
+@sio.event
+def connect_error():
+    print("The connection failed!")
+
+@sio.event
+def disconnect():
+    print("I\(aqm disconnected!")
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that the \fBdisconnect\fP handler is invoked for application initiated
+disconnects, server initiated disconnects, or accidental disconnects, for
+example due to networking failures. In the case of an accidental
+disconnection, the client is going to attempt to reconnect immediately after
+invoking the disconnect handler. As soon as the connection is re\-established
+the connect handler will be invoked once again.
+.sp
+If the server includes arguments with an event, those are passed to the
+handler function as arguments.
+.SS Connecting to a Server
+.sp
+The connection to a server is established by calling the \fBconnect()\fP
+method:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.connect(\(aqhttp://localhost:5000\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In the case of the \fBasyncio\fP client, the method is a coroutine:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+await sio.connect(\(aqhttp://localhost:5000\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Upon connection, the server assigns the client a unique session identifier.
+The applicaction can find this identifier in the \fBsid\fP attribute:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+print(\(aqmy sid is\(aq, sio.sid)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Emitting Events
+.sp
+The client can emit an event to the server using the \fBemit()\fP method:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.emit(\(aqmy message\(aq, {\(aqfoo\(aq: \(aqbar\(aq})
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Or in the case of \fBasyncio\fP, as a coroutine:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+await sio.emit(\(aqmy message\(aq, {\(aqfoo\(aq: \(aqbar\(aq})
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The single argument provided to the method is the data that is passed on
+to the server. The data can be of type \fBstr\fP, \fBbytes\fP, \fBdict\fP,
+\fBlist\fP or \fBtuple\fP\&. When sending a \fBtuple\fP, the elements in it need to
+be of any of the other four allowed types. The elements of the tuple will be
+passed as multiple arguments to the server\-side event handler function.
+.sp
+The \fBemit()\fP method can be invoked inside an event handler as a response
+to a server event, or in any other part of the application, including in
+background tasks.
+.SS Event Callbacks
+.sp
+When a server emits an event to a client, it can optionally provide a
+callback function, to be invoked as a way of acknowledgment that the server
+has processed the event. While this is entirely managed by the server, the
+client can provide a list of return values that are to be passed on to the
+callback function set up by the server. This is achieved simply by returning
+the desired values from the handler function:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def my_event(sid, data):
+    # handle the message
+    return "OK", 123
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Likewise, the client can request a callback function to be invoked after the
+server has processed an event. The \fBsocketio.Server.emit()\fP method has an
+optional \fBcallback\fP argument that can be set to a callable. If this
+argument is given, the callable will be invoked after the server has processed
+the event, and any values returned by the server handler will be passed as
+arguments to this function.
+.SS Namespaces
+.sp
+The Socket.IO protocol supports multiple logical connections, all multiplexed
+on the same physical connection. Clients can open multiple connections by
+specifying a different \fInamespace\fP on each. Namespaces use a path syntax
+starting with a forward slash. A list of namespaces can be given by the client
+in the \fBconnect()\fP call. For example, this example creates two logical
+connections, the default one plus a second connection under the \fB/chat\fP
+namespace:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.connect(\(aqhttp://localhost:5000\(aq, namespaces=[\(aq/chat\(aq])
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To define event handlers on a namespace, the \fBnamespace\fP argument must be
+added to the corresponding decorator:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event(namespace=\(aq/chat\(aq)
+def my_custom_event(sid, data):
+    pass
+
+@sio.on(\(aqconnect\(aq, namespace=\(aq/chat\(aq)
+def on_connect():
+    print("I\(aqm connected to the /chat namespace!")
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Likewise, the client can emit an event to the server on a namespace by
+providing its in the \fBemit()\fP call:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.emit(\(aqmy message\(aq, {\(aqfoo\(aq: \(aqbar\(aq}, namespace=\(aq/chat\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If the \fBnamespaces\fP argument of the \fBconnect()\fP call isn\(aqt given, any
+namespaces used in event handlers are automatically connected.
+.SS Class\-Based Namespaces
+.sp
+As an alternative to the decorator\-based event handlers, the event handlers
+that belong to a namespace can be created as methods of a subclass of
+\fBsocketio.ClientNamespace\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+class MyCustomNamespace(socketio.ClientNamespace):
+    def on_connect(self):
+        pass
+
+    def on_disconnect(self):
+        pass
+
+    def on_my_event(self, data):
+        self.emit(\(aqmy_response\(aq, data)
+
+sio.register_namespace(MyCustomNamespace(\(aq/chat\(aq))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For asyncio based servers, namespaces must inherit from
+\fBsocketio.AsyncClientNamespace\fP, and can define event handlers as
+coroutines if desired:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+class MyCustomNamespace(socketio.AsyncClientNamespace):
+    def on_connect(self):
+        pass
+
+    def on_disconnect(self):
+        pass
+
+    async def on_my_event(self, data):
+        await self.emit(\(aqmy_response\(aq, data)
+
+sio.register_namespace(MyCustomNamespace(\(aq/chat\(aq))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When class\-based namespaces are used, any events received by the client are
+dispatched to a method named as the event name with the \fBon_\fP prefix. For
+example, event \fBmy_event\fP will be handled by a method named \fBon_my_event\fP\&.
+If an event is received for which there is no corresponding method defined in
+the namespace class, then the event is ignored. All event names used in
+class\-based namespaces must use characters that are legal in method names.
+.sp
+As a convenience to methods defined in a class\-based namespace, the namespace
+instance includes versions of several of the methods in the
+\fBsocketio.Client\fP and \fBsocketio.AsyncClient\fP classes that
+default to the proper namespace when the \fBnamespace\fP argument is not given.
+.sp
+In the case that an event has a handler in a class\-based namespace, and also a
+decorator\-based function handler, only the standalone function handler is
+invoked.
+.SS Disconnecting from the Server
+.sp
+At any time the client can request to be disconnected from the server by
+invoking the \fBdisconnect()\fP method:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.disconnect()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For the \fBasyncio\fP client this is a coroutine:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+await sio.disconnect()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Managing Background Tasks
+.sp
+When a client connection to the server is established, a few background
+tasks will be spawned to keep the connection alive and handle incoming
+events. The application running on the main thread is free to do any
+work, as this is not going to prevent the functioning of the Socket.IO
+client.
+.sp
+If the application does not have anything to do in the main thread and
+just wants to wait until the connection with the server ends, it can call
+the \fBwait()\fP method:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.wait()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Or in the \fBasyncio\fP version:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+await sio.wait()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For the convenience of the application, a helper function is provided to
+start a custom background task:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+def my_background_task(my_argument)
+    # do some background work here!
+    pass
+
+sio.start_background_task(my_background_task, 123)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The arguments passed to this method are the background function and any
+positional or keyword arguments to invoke the function with.
+.sp
+Here is the \fBasyncio\fP version:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+async def my_background_task(my_argument)
+    # do some background work here!
+    pass
+
+sio.start_background_task(my_background_task, 123)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that this function is not a coroutine, since it does not wait for the
+background function to end. The background function must be a coroutine.
+.sp
+The \fBsleep()\fP method is a second convenience function that is provided for
+the benefit of applications working with background tasks of their own:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.sleep(2)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Or for \fBasyncio\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+await sio.sleep(2)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The single argument passed to the method is the number of seconds to sleep
+for.
+.SH THE SOCKET.IO SERVER
+.sp
+This package contains two Socket.IO servers:
+.INDENT 0.0
+.IP \(bu 2
+The \fBsocketio.Server()\fP class creates a server compatible with the
+Python standard library.
+.IP \(bu 2
+The \fBsocketio.AsyncServer()\fP class creates a server compatible with
+the \fBasyncio\fP package.
+.UNINDENT
+.sp
+The methods in the two servers are the same, with the only difference that in
+the \fBasyncio\fP server most methods are implemented as coroutines.
+.SS Installation
+.sp
+To install the Socket.IO server along with its dependencies, use the following
+command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pip install python\-socketio
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In addition to the server, you will need to select an asynchronous framework
+or server to use along with it. The list of supported packages is covered
+in the \fI\%Deployment Strategies\fP section.
+.SS Creating a Server Instance
+.sp
+A Socket.IO server is an instance of class \fBsocketio.Server\fP\&. This
+instance can be transformed into a standard WSGI application by wrapping it
+with the \fBsocketio.WSGIApp\fP class:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import socketio
+
+# create a Socket.IO server
+sio = socketio.Server()
+
+# wrap with a WSGI application
+app = socketio.WSGIApp(sio)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For asyncio based servers, the \fBsocketio.AsyncServer\fP class provides
+the same functionality, but in a coroutine friendly format. If desired, The
+\fBsocketio.ASGIApp\fP class can transform the server into a standard
+ASGI application:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# create a Socket.IO server
+sio = socketio.AsyncServer()
+
+# wrap with ASGI application
+app = socketio.ASGIApp(sio)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+These two wrappers can also act as middlewares, forwarding any traffic that is
+not intended to the Socket.IO server to another application. This allows
+Socket.IO servers to integrate easily into existing WSGI or ASGI applications:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from wsgi import app  # a Flask, Django, etc. application
+app = socketio.WSGIApp(sio, app)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Serving Static Files
+.sp
+The Engine.IO server can be configured to serve static files to clients. This
+is particularly useful to deliver HTML, CSS and JavaScript files to clients
+when this package is used without a companion web framework.
+.sp
+Static files are configured with a Python dictionary in which each key/value
+pair is a static file mapping rule. In its simplest form, this dictionary has
+one or more static file URLs as keys, and the corresponding files in the server
+as values:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+static_files = {
+    \(aq/\(aq: \(aqlatency.html\(aq,
+    \(aq/static/socket.io.js\(aq: \(aqstatic/socket.io.js\(aq,
+    \(aq/static/style.css\(aq: \(aqstatic/style.css\(aq,
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+With this example configuration, when the server receives a request for \fB/\fP
+(the root URL) it will return the contents of the file \fBlatency.html\fP in the
+current directory, and will assign a content type based on the file extension,
+in this case \fBtext/html\fP\&.
+.sp
+Files with the \fB\&.html\fP, \fB\&.css\fP, \fB\&.js\fP, \fB\&.json\fP, \fB\&.jpg\fP, \fB\&.png\fP,
+\fB\&.gif\fP and \fB\&.txt\fP file extensions are automatically recognized and
+assigned the correct content type. For files with other file extensions or
+with no file extension, the \fBapplication/octet\-stream\fP content type is used
+as a default.
+.sp
+If desired, an explicit content type for a static file can be given as follows:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+static_files = {
+    \(aq/\(aq: {\(aqfilename\(aq: \(aqlatency.html\(aq, \(aqcontent_type\(aq: \(aqtext/plain\(aq},
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+It is also possible to configure an entire directory in a single rule, so that all
+the files in it are served as static files:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+static_files = {
+    \(aq/static\(aq: \(aq./public\(aq,
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In this example any files with URLs starting with \fB/static\fP will be served
+directly from the \fBpublic\fP folder in the current directory, so for example,
+the URL \fB/static/index.html\fP will return local file \fB\&./public/index.html\fP
+and the URL \fB/static/css/styles.css\fP will return local file
+\fB\&./public/css/styles.css\fP\&.
+.sp
+If a URL that ends in a \fB/\fP is requested, then a default filename of
+\fBindex.html\fP is appended to it. In the previous example, a request for the
+\fB/static/\fP URL would return local file \fB\&./public/index.html\fP\&. The default
+filename to serve for slash\-ending URLs can be set in the static files
+dictionary with an empty key:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+static_files = {
+    \(aq/static\(aq: \(aq./public\(aq,
+    \(aq\(aq: \(aqimage.gif\(aq,
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+With this configuration, a request for \fB/static/\fP would return
+local file \fB\&./public/image.gif\fP\&. A non\-standard content type can also be
+specified if needed:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+static_files = {
+    \(aq/static\(aq: \(aq./public\(aq,
+    \(aq\(aq: {\(aqfilename\(aq: \(aqimage.gif\(aq, \(aqcontent_type\(aq: \(aqtext/plain\(aq},
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The static file configuration dictionary is given as the \fBstatic_files\fP
+argument to the \fBsocketio.WSGIApp\fP or \fBsocketio.ASGIApp\fP classes:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# for standard WSGI applications
+sio = socketio.Server()
+app = socketio.WSGIApp(sio, static_files=static_files)
+
+# for asyncio\-based ASGI applications
+sio = socketio.AsyncServer()
+app = socketio.ASGIApp(sio, static_files=static_files)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The routing precedence in these two classes is as follows:
+.INDENT 0.0
+.IP \(bu 2
+First, the path is checked against the Socket.IO endpoint.
+.IP \(bu 2
+Next, the path is checked against the static file configuration, if present.
+.IP \(bu 2
+If the path did not match the Socket.IO endpoint or any static file, control
+is passed to the secondary application if configured, else a 404 error is
+returned.
+.UNINDENT
+.sp
+Note: static file serving is intended for development use only, and as such
+it lacks important features such as caching. Do not use in a production
+environment.
+.SS Defining Event Handlers
+.sp
+The Socket.IO protocol is event based. When a client wants to communicate with
+the server it \fIemits\fP an event. Each event has a name, and a list of
+arguments. The server registers event handler functions with the
+\fBsocketio.Server.event()\fP or \fBsocketio.Server.on()\fP decorators:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def my_event(sid, data):
+    pass
+
+@sio.on(\(aqmy custom event\(aq)
+def another_event(sid, data):
+    pass
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In the first example the event name is obtained from the name of the handler
+function. The second example is slightly more verbose, but it allows the event
+name to be different than the function name or to include characters that are
+illegal in function names, such as spaces.
+.sp
+For asyncio servers, event handlers can optionally be given as coroutines:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+async def my_event(sid, data):
+    pass
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBsid\fP argument is the Socket.IO session id, a unique identifier of each
+client connection. All the events sent by a given client will have the same
+\fBsid\fP value.
+.sp
+The \fBconnect\fP and \fBdisconnect\fP events are special; they are invoked
+automatically when a client connects or disconnects from the server:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def connect(sid, environ):
+    print(\(aqconnect \(aq, sid)
+
+@sio.event
+def disconnect(sid):
+    print(\(aqdisconnect \(aq, sid)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBconnect\fP event is an ideal place to perform user authentication, and
+any necessary mapping between user entities in the application and the \fBsid\fP
+that was assigned to the client. The \fBenviron\fP argument is a dictionary in
+standard WSGI format containing the request information, including HTTP
+headers. After inspecting the request, the connect event handler can return
+\fBFalse\fP to reject the connection with the client.
+.sp
+Sometimes it is useful to pass data back to the client being rejected. In that
+case instead of returning \fBFalse\fP
+\fBsocketio.exceptions.ConnectionRefusedError\fP can be raised, and all of
+its arguments will be sent to the client with the rejection message:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def connect(sid, environ):
+    raise ConnectionRefusedError(\(aqauthentication failed\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Emitting Events
+.sp
+Socket.IO is a bidirectional protocol, so at any time the server can send an
+event to its connected clients. The \fBsocketio.Server.emit()\fP method is
+used for this task:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.emit(\(aqmy event\(aq, {\(aqdata\(aq: \(aqfoobar\(aq})
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Sometimes the server may want to send an event just to a particular client.
+This can be achieved by adding a \fBroom\fP argument to the emit call:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio.emit(\(aqmy event\(aq, {\(aqdata\(aq: \(aqfoobar\(aq}, room=user_sid)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBsocketio.Server.emit()\fP method takes an event name, a message payload
+of type \fBstr\fP, \fBbytes\fP, \fBlist\fP, \fBdict\fP or \fBtuple\fP, and the recipient
+room. When sending a \fBtuple\fP, the elements in it need to be of any of the
+other four allowed types. The elements of the tuple will be passed as multiple
+arguments to the client\-side event handler function. The \fBroom\fP argument is
+used to identify the client that should receive the event, and is set to the
+\fBsid\fP value assigned to that client\(aqs connection with the server. When
+omitted, the event is broadcasted to all connected clients.
+.SS Event Callbacks
+.sp
+When a client sends an event to the server, it can optionally provide a
+callback function, to be invoked as a way of acknowledgment that the server
+has processed the event. While this is entirely managed by the client, the
+server can provide a list of values that are to be passed on to the callback
+function, simply by returning them from the handler function:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def my_event(sid, data):
+    # handle the message
+    return "OK", 123
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Likewise, the server can request a callback function to be invoked after a
+client has processed an event. The \fBsocketio.Server.emit()\fP method has an
+optional \fBcallback\fP argument that can be set to a callable. If this
+argument is given, the callable will be invoked after the client has processed
+the event, and any values returned by the client will be passed as arguments
+to this function. Using callback functions when broadcasting to multiple
+clients is not recommended, as the callback function will be invoked once for
+each client that received the message.
+.SS Namespaces
+.sp
+The Socket.IO protocol supports multiple logical connections, all multiplexed
+on the same physical connection. Clients can open multiple connections by
+specifying a different \fInamespace\fP on each. A namespace is given by the client
+as a pathname following the hostname and port. For example, connecting to
+\fIhttp://example.com:8000/chat\fP would open a connection to the namespace
+\fI/chat\fP\&.
+.sp
+Each namespace is handled independently from the others, with separate session
+IDs (\fBsid\fPs), event handlers and rooms. It is important that applications
+that use multiple namespaces specify the correct namespace when setting up
+their event handlers and rooms, using the optional \fBnamespace\fP argument
+available in all the methods in the \fBsocketio.Server\fP class:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event(namespace=\(aq/chat\(aq)
+def my_custom_event(sid, data):
+    pass
+
+@sio.on(\(aqmy custom event\(aq, namespace=\(aq/chat\(aq)
+def my_custom_event(sid, data):
+    pass
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When emitting an event, the \fBnamespace\fP optional argument is used to specify
+which namespace to send it on. When the \fBnamespace\fP argument is omitted, the
+default Socket.IO namespace, which is named \fB/\fP, is used.
+.SS Class\-Based Namespaces
+.sp
+As an alternative to the decorator\-based event handlers, the event handlers
+that belong to a namespace can be created as methods of a subclass of
+\fBsocketio.Namespace\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+class MyCustomNamespace(socketio.Namespace):
+    def on_connect(self, sid, environ):
+        pass
+
+    def on_disconnect(self, sid):
+        pass
+
+    def on_my_event(self, sid, data):
+        self.emit(\(aqmy_response\(aq, data)
+
+sio.register_namespace(MyCustomNamespace(\(aq/test\(aq))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For asyncio based severs, namespaces must inherit from
+\fBsocketio.AsyncNamespace\fP, and can define event handlers as coroutines
+if desired:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+class MyCustomNamespace(socketio.AsyncNamespace):
+    def on_connect(self, sid, environ):
+        pass
+
+    def on_disconnect(self, sid):
+        pass
+
+    async def on_my_event(self, sid, data):
+        await self.emit(\(aqmy_response\(aq, data)
+
+sio.register_namespace(MyCustomNamespace(\(aq/test\(aq))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When class\-based namespaces are used, any events received by the server are
+dispatched to a method named as the event name with the \fBon_\fP prefix. For
+example, event \fBmy_event\fP will be handled by a method named \fBon_my_event\fP\&.
+If an event is received for which there is no corresponding method defined in
+the namespace class, then the event is ignored. All event names used in
+class\-based namespaces must use characters that are legal in method names.
+.sp
+As a convenience to methods defined in a class\-based namespace, the namespace
+instance includes versions of several of the methods in the
+\fBsocketio.Server\fP and \fBsocketio.AsyncServer\fP classes that default
+to the proper namespace when the \fBnamespace\fP argument is not given.
+.sp
+In the case that an event has a handler in a class\-based namespace, and also a
+decorator\-based function handler, only the standalone function handler is
+invoked.
+.sp
+It is important to note that class\-based namespaces are singletons. This means
+that a single instance of a namespace class is used for all clients, and
+consequently, a namespace instance cannot be used to store client specific
+information.
+.SS Rooms
+.sp
+To make it easy for the server to emit events to groups of related clients,
+the application can put its clients into "rooms", and then address messages to
+these rooms.
+.sp
+In the previous section the \fBroom\fP argument of the
+\fBsocketio.SocketIO.emit()\fP method was used to designate a specific
+client as the recipient of the event. This is because upon connection, a
+personal room for each client is created and named with the \fBsid\fP assigned
+to the connection. The application is then free to create additional rooms and
+manage which clients are in them using the \fBsocketio.Server.enter_room()\fP
+and \fBsocketio.Server.leave_room()\fP methods. Clients can be in as many
+rooms as needed and can be moved between rooms as often as necessary.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def begin_chat(sid):
+   sio.enter_room(sid, \(aqchat_users\(aq)
+
+ @sio.event
+ def exit_chat(sid):
+     sio.leave_room(sid, \(aqchat_users\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In chat applications it is often desired that an event is broadcasted to all
+the members of the room except one, which is the originator of the event such
+as a chat message. The \fBsocketio.Server.emit()\fP method provides an
+optional \fBskip_sid\fP argument to indicate a client that should be skipped
+during the broadcast.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def my_message(sid, data):
+    sio.emit(\(aqmy reply\(aq, data, room=\(aqchat_users\(aq, skip_sid=sid)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS User Sessions
+.sp
+The server can maintain application\-specific information in a user session
+dedicated to each connected client. Applications can use the user session to
+write any details about the user that need to be preserved throughout the life
+of the connection, such as usernames or user ids.
+.sp
+The \fBsave_session()\fP and \fBget_session()\fP methods are used to store and
+retrieve information in the user session:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def connect(sid, environ):
+    username = authenticate_user(environ)
+    sio.save_session(sid, {\(aqusername\(aq: username})
+
+@sio.event
+def message(sid, data):
+    session = sio.get_session(sid)
+    print(\(aqmessage from \(aq, session[\(aqusername\(aq])
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For the \fBasyncio\fP server, these methods are coroutines:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+async def connect(sid, environ):
+    username = authenticate_user(environ)
+    await sio.save_session(sid, {\(aqusername\(aq: username})
+
+@sio.event
+async def message(sid, data):
+    session = await sio.get_session(sid)
+    print(\(aqmessage from \(aq, session[\(aqusername\(aq])
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The session can also be manipulated with the \fIsession()\fP context manager:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def connect(sid, environ):
+    username = authenticate_user(environ)
+    with sio.session(sid) as session:
+        session[\(aqusername\(aq] = username
+
+@sio.event
+def message(sid, data):
+    with sio.session(sid) as session:
+        print(\(aqmessage from \(aq, session[\(aqusername\(aq])
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For the \fBasyncio\fP server, an asynchronous context manager is used:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def connect(sid, environ):
+    username = authenticate_user(environ)
+    async with sio.session(sid) as session:
+        session[\(aqusername\(aq] = username
+
+@sio.event
+def message(sid, data):
+    async with sio.session(sid) as session:
+        print(\(aqmessage from \(aq, session[\(aqusername\(aq])
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBget_session()\fP, \fBsave_session()\fP and \fBsession()\fP methods take an
+optional \fBnamespace\fP argument. If this argument isn\(aqt provided, the session
+is attached to the default namespace.
+.sp
+Note: the contents of the user session are destroyed when the client
+disconnects. In particular, user session contents are not preserved when a
+client reconnects after an unexpected disconnection from the server.
+.SS Using a Message Queue
+.sp
+When working with distributed applications, it is often necessary to access
+the functionality of the Socket.IO from multiple processes. There are two
+specific use cases:
+.INDENT 0.0
+.IP \(bu 2
+Applications that use a work queues such as
+\fI\%Celery\fP may need to emit an event to a
+client once a background job completes. The most convenient place to carry
+out this task is the worker process that handled this job.
+.IP \(bu 2
+Highly available applications may want to use horizontal scaling of the
+Socket.IO server to be able to handle very large number of concurrent
+clients.
+.UNINDENT
+.sp
+As a solution to the above problems, the Socket.IO server can be configured
+to connect to a message queue such as \fI\%Redis\fP or
+\fI\%RabbitMQ\fP, to communicate with other related
+Socket.IO servers or auxiliary workers.
+.SS Redis
+.sp
+To use a Redis message queue, a Python Redis client must be installed:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# socketio.Server class
+pip install redis
+
+# socketio.AsyncServer class
+pip install aioredis
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The Redis queue is configured through the \fBsocketio.RedisManager\fP and
+\fBsocketio.AsyncRedisManager\fP classes. These classes connect directly to
+the Redis store and use the queue\(aqs pub/sub functionality:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# socketio.Server class
+mgr = socketio.RedisManager(\(aqredis://\(aq)
+sio = socketio.Server(client_manager=mgr)
+
+# socketio.AsyncServer class
+mgr = socketio.AsyncRedisManager(\(aqredis://\(aq)
+sio = socketio.AsyncServer(client_manager=mgr)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBclient_manager\fP argument instructs the server to connect to the given
+message queue, and to coordinate with other processes connected to the queue.
+.SS Kombu
+.sp
+\fI\%Kombu\fP is a Python package that
+provides access to RabbitMQ and many other message queues. It can be installed
+with pip:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pip install kombu
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To use RabbitMQ or other AMQP protocol compatible queues, that is the only
+required dependency. But for other message queues, Kombu may require
+additional packages. For example, to use a Redis queue via Kombu, the Python
+package for Redis needs to be installed as well:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pip install redis
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The queue is configured through the \fBsocketio.KombuManager\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mgr = socketio.KombuManager(\(aqamqp://\(aq)
+sio = socketio.Server(client_manager=mgr)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The connection URL passed to the \fBKombuManager\fP constructor is passed
+directly to Kombu\(aqs \fI\%Connection object\fP, so
+the Kombu documentation should be consulted for information on how to build
+the correct URL for a given message queue.
+.sp
+Note that Kombu currently does not support asyncio, so it cannot be used with
+the \fBsocketio.AsyncServer\fP class.
+.SS Kafka
+.sp
+\fI\%Apache Kafka\fP is supported through the
+\fI\%kafka\-python\fP
+package:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pip install kafka\-python
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Access to Kafka is configured through the \fBsocketio.KafkaManager\fP
+class:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mgr = socketio.KafkaManager(\(aqkafka://\(aq)
+sio = socketio.Server(client_manager=mgr)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Note that Kafka currently does not support asyncio, so it cannot be used with
+the \fBsocketio.AsyncServer\fP class.
+.SS AioPika
+.sp
+A RabbitMQ message queue is supported in asyncio applications through the
+\fI\%AioPika\fP package::
+You need to install aio_pika with pip:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pip install aio_pika
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The RabbitMQ queue is configured through the
+\fBsocketio.AsyncAioPikaManager\fP class:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+mgr = socketio.AsyncAioPikaManager(\(aqamqp://\(aq)
+sio = socketio.AsyncServer(client_manager=mgr)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Emitting from external processes
+.sp
+To have a process other than a server connect to the queue to emit a message,
+the same client manager classes can be used as standalone objects. In this
+case, the \fBwrite_only\fP argument should be set to \fBTrue\fP to disable the
+creation of a listening thread, which only makes sense in a server. For
+example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# connect to the redis queue as an external process
+external_sio = socketio.RedisManager(\(aqredis://\(aq, write_only=True)
+
+# emit an event
+external_sio.emit(\(aqmy event\(aq, data={\(aqfoo\(aq: \(aqbar\(aq}, room=\(aqmy room\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Deployment Strategies
+.sp
+The following sections describe a variety of deployment strategies for
+Socket.IO servers.
+.SS Aiohttp
+.sp
+\fI\%Aiohttp\fP is a framework with support for HTTP
+and WebSocket, based on asyncio. Support for this framework is limited to Python
+3.5 and newer.
+.sp
+Instances of class \fBsocketio.AsyncServer\fP will automatically use aiohttp
+for asynchronous operations if the library is installed. To request its use
+explicitly, the \fBasync_mode\fP option can be given in the constructor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.AsyncServer(async_mode=\(aqaiohttp\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A server configured for aiohttp must be attached to an existing application:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+app = web.Application()
+sio.attach(app)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The aiohttp application can define regular routes that will coexist with the
+Socket.IO server. A typical pattern is to add routes that serve a client
+application and any associated static files.
+.sp
+The aiohttp application is then executed in the usual manner:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+if __name__ == \(aq__main__\(aq:
+    web.run_app(app)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Tornado
+.sp
+\fI\%Tornado\fP is a web framework with support
+for HTTP and WebSocket. Support for this framework requires Python 3.5 and
+newer. Only Tornado version 5 and newer are supported, thanks to its tight
+integration with asyncio.
+.sp
+Instances of class \fBsocketio.AsyncServer\fP will automatically use tornado
+for asynchronous operations if the library is installed. To request its use
+explicitly, the \fBasync_mode\fP option can be given in the constructor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.AsyncServer(async_mode=\(aqtornado\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A server configured for tornado must include a request handler for
+Socket.IO:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+app = tornado.web.Application(
+    [
+        (r"/socketio.io/", socketio.get_tornado_handler(sio)),
+    ],
+    # ... other application options
+)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The tornado application can define other routes that will coexist with the
+Socket.IO server. A typical pattern is to add routes that serve a client
+application and any associated static files.
+.sp
+The tornado application is then executed in the usual manner:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+app.listen(port)
+tornado.ioloop.IOLoop.current().start()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Sanic
+.sp
+\fI\%Sanic\fP is a very efficient asynchronous web
+server for Python 3.5 and newer.
+.sp
+Instances of class \fBsocketio.AsyncServer\fP will automatically use Sanic for
+asynchronous operations if the framework is installed. To request its use
+explicitly, the \fBasync_mode\fP option can be given in the constructor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.AsyncServer(async_mode=\(aqsanic\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A server configured for aiohttp must be attached to an existing application:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+app = Sanic()
+sio.attach(app)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The Sanic application can define regular routes that will coexist with the
+Socket.IO server. A typical pattern is to add routes that serve a client
+application and any associated static files.
+.sp
+The Sanic application is then executed in the usual manner:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+if __name__ == \(aq__main__\(aq:
+    app.run()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+It has been reported that the CORS support provided by the Sanic extension
+\fI\%sanic\-cors\fP is incompatible with
+this package\(aqs own support for this protocol. To disable CORS support in this
+package and let Sanic take full control, initialize the server as follows:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.AsyncServer(async_mode=\(aqsanic\(aq, cors_allowed_origins=[])
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+On the Sanic side you will need to enable the \fICORS_SUPPORTS_CREDENTIALS\fP
+setting in addition to any other configuration that you use:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+app.config[\(aqCORS_SUPPORTS_CREDENTIALS\(aq] = True
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Uvicorn, Daphne, and other ASGI servers
+.sp
+The \fBsocketio.ASGIApp\fP class is an ASGI compatible application that can
+forward Socket.IO traffic to an \fBsocketio.AsyncServer\fP instance:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.AsyncServer(async_mode=\(aqasgi\(aq)
+app = socketio.ASGIApp(sio)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The application can then be deployed with any ASGI compatible web server.
+.SS Eventlet
+.sp
+\fI\%Eventlet\fP is a high performance concurrent networking
+library for Python 2 and 3 that uses coroutines, enabling code to be written in
+the same style used with the blocking standard library functions. An Socket.IO
+server deployed with eventlet has access to the long\-polling and WebSocket
+transports.
+.sp
+Instances of class \fBsocketio.Server\fP will automatically use eventlet for
+asynchronous operations if the library is installed. To request its use
+explicitly, the \fBasync_mode\fP option can be given in the constructor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.Server(async_mode=\(aqeventlet\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A server configured for eventlet is deployed as a regular WSGI application
+using the provided \fBsocketio.WSGIApp\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+app = socketio.WSGIApp(sio)
+import eventlet
+eventlet.wsgi.server(eventlet.listen((\(aq\(aq, 8000)), app)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Eventlet with Gunicorn
+.sp
+An alternative to running the eventlet WSGI server as above is to use
+\fI\%gunicorn\fP, a fully featured pure Python web server. The
+command to launch the application under gunicorn is shown below:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ gunicorn \-k eventlet \-w 1 module:app
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Due to limitations in its load balancing algorithm, gunicorn can only be used
+with one worker process, so the \fB\-w\fP option cannot be set to a value higher
+than 1. A single eventlet worker can handle a large number of concurrent
+clients, each handled by a greenlet.
+.sp
+Eventlet provides a \fBmonkey_patch()\fP function that replaces all the blocking
+functions in the standard library with equivalent asynchronous versions. While
+python\-socketio does not require monkey patching, other libraries such as
+database drivers are likely to require it.
+.SS Gevent
+.sp
+\fI\%Gevent\fP is another asynchronous framework based on
+coroutines, very similar to eventlet. An Socket.IO server deployed with
+gevent has access to the long\-polling transport. If project
+\fI\%gevent\-websocket\fP is
+installed, the WebSocket transport is also available.
+.sp
+Instances of class \fBsocketio.Server\fP will automatically use gevent for
+asynchronous operations if the library is installed and eventlet is not
+installed. To request gevent to be selected explicitly, the \fBasync_mode\fP
+option can be given in the constructor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.Server(async_mode=\(aqgevent\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A server configured for gevent is deployed as a regular WSGI application
+using the provided \fBsocketio.WSGIApp\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+app = socketio.WSGIApp(sio)
+from gevent import pywsgi
+pywsgi.WSGIServer((\(aq\(aq, 8000), app).serve_forever()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+If the WebSocket transport is installed, then the server must be started as
+follows:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from gevent import pywsgi
+from geventwebsocket.handler import WebSocketHandler
+app = socketio.WSGIApp(sio)
+pywsgi.WSGIServer((\(aq\(aq, 8000), app,
+                  handler_class=WebSocketHandler).serve_forever()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Gevent with Gunicorn
+.sp
+An alternative to running the gevent WSGI server as above is to use
+\fI\%gunicorn\fP, a fully featured pure Python web server. The
+command to launch the application under gunicorn is shown below:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ gunicorn \-k gevent \-w 1 module:app
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Or to include WebSocket:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ gunicorn \-k geventwebsocket.gunicorn.workers.GeventWebSocketWorker \-w 1 module: app
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Same as with eventlet, due to limitations in its load balancing algorithm,
+gunicorn can only be used with one worker process, so the \fB\-w\fP option cannot
+be higher than 1. A single gevent worker can handle a large number of
+concurrent clients through the use of greenlets.
+.sp
+Gevent provides a \fBmonkey_patch()\fP function that replaces all the blocking
+functions in the standard library with equivalent asynchronous versions. While
+python\-socketio does not require monkey patching, other libraries such as
+database drivers are likely to require it.
+.SS uWSGI
+.sp
+When using the uWSGI server in combination with gevent, the Socket.IO server
+can take advantage of uWSGI\(aqs native WebSocket support.
+.sp
+Instances of class \fBsocketio.Server\fP will automatically use this option for
+asynchronous operations if both gevent and uWSGI are installed and eventlet is
+not installed. To request this asynchronous mode explicitly, the
+\fBasync_mode\fP option can be given in the constructor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# gevent with uWSGI
+sio = socketio.Server(async_mode=\(aqgevent_uwsgi\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A complete explanation of the configuration and usage of the uWSGI server is
+beyond the scope of this documentation. The uWSGI server is a fairly complex
+package that provides a large and comprehensive set of options. It must be
+compiled with WebSocket and SSL support for the WebSocket transport to be
+available. As way of an introduction, the following command starts a uWSGI
+server for the \fBlatency.py\fP example on port 5000:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ uwsgi \-\-http :5000 \-\-gevent 1000 \-\-http\-websockets \-\-master \-\-wsgi\-file latency.py \-\-callable app
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Standard Threads
+.sp
+While not comparable to eventlet and gevent in terms of performance,
+the Socket.IO server can also be configured to work with multi\-threaded web
+servers that use standard Python threads. This is an ideal setup to use with
+development servers such as \fI\%Werkzeug\fP\&. Only the
+long\-polling transport is currently available when using standard threads.
+.sp
+Instances of class \fBsocketio.Server\fP will automatically use the threading
+mode if neither eventlet nor gevent are not installed. To request the
+threading mode explicitly, the \fBasync_mode\fP option can be given in the
+constructor:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.Server(async_mode=\(aqthreading\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A server configured for threading is deployed as a regular web application,
+using any WSGI complaint multi\-threaded server. The example below deploys an
+Socket.IO application combined with a Flask web application, using Flask\(aqs
+development web server based on Werkzeug:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.Server(async_mode=\(aqthreading\(aq)
+app = Flask(__name__)
+app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
+
+# ... Socket.IO and Flask handler functions ...
+
+if __name__ == \(aq__main__\(aq:
+    app.run(threaded=True)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+When using the threading mode, it is important to ensure that the WSGI server
+can handle multiple concurrent requests using threads, since a client can have
+up to two outstanding requests at any given time. The Werkzeug server is
+single\-threaded by default, so the \fBthreaded=True\fP option is required.
+.sp
+Note that servers that use worker processes instead of threads, such as
+gunicorn, do not support a Socket.IO server configured in threading mode.
+.SS Scalability Notes
+.sp
+Socket.IO is a stateful protocol, which makes horizontal scaling more
+difficult. To deploy a cluster of Socket.IO processes hosted on one or
+multiple servers, the following conditions must be met:
+.INDENT 0.0
+.IP \(bu 2
+Each Socket.IO process must be able to handle multiple requests
+concurrently. This is required because long\-polling clients send two
+requests in parallel. Worker processes that can only handle one request at a
+time are not supported.
+.IP \(bu 2
+The load balancer must be configured to always forward requests from a
+client to the same worker process. Load balancers call this \fIsticky
+sessions\fP, or \fIsession affinity\fP\&.
+.IP \(bu 2
+The worker processes need to communicate with each other to coordinate
+complex operations such as broadcasts. This is done through a configured
+message queue. See the section on using message queues for details.
+.UNINDENT
+.SS Cross\-Origin Controls
+.sp
+For security reasons, this server enforces a same\-origin policy by default. In
+practical terms, this means the following:
+.INDENT 0.0
+.IP \(bu 2
+If an incoming HTTP or WebSocket request includes the \fBOrigin\fP header,
+this header must match the scheme and host of the connection URL. In case
+of a mismatch, a 400 status code response is returned and the connection is
+rejected.
+.IP \(bu 2
+No restrictions are imposed on incoming requests that do not include the
+\fBOrigin\fP header.
+.UNINDENT
+.sp
+If necessary, the \fBcors_allowed_origins\fP option can be used to allow other
+origins. This argument can be set to a string to set a single allowed origin, or
+to a list to allow multiple origins. A special value of \fB\(aq*\(aq\fP can be used to
+instruct the server to allow all origins, but this should be done with care, as
+this could make the server vulnerable to Cross\-Site Request Forgery (CSRF)
+attacks.
+.SH API REFERENCE
+.SS \fBClient\fP class
+.INDENT 0.0
+.TP
+.B class socketio.Client(reconnection=True, reconnection_attempts=0, reconnection_delay=1, reconnection_delay_max=5, randomization_factor=0.5, logger=False, binary=False, json=None, **kwargs)
+A Socket.IO client.
+.sp
+This class implements a fully compliant Socket.IO web client with support
+for websocket and long\-polling transports.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBreconnection\fP \-\- \fBTrue\fP if the client should automatically attempt to
+reconnect to the server after an interruption, or
+\fBFalse\fP to not reconnect. The default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBreconnection_attempts\fP \-\- How many reconnection attempts to issue
+before giving up, or 0 for infinity attempts.
+The default is 0.
+.IP \(bu 2
+\fBreconnection_delay\fP \-\- How long to wait in seconds before the first
+reconnection attempt. Each successive attempt
+doubles this delay.
+.IP \(bu 2
+\fBreconnection_delay_max\fP \-\- The maximum delay between reconnection
+attempts.
+.IP \(bu 2
+\fBrandomization_factor\fP \-\- Randomization amount for each delay between
+reconnection attempts. The default is 0.5,
+which means that each delay is randomly
+adjusted by +/\- 50%.
+.IP \(bu 2
+\fBlogger\fP \-\- To enable logging set to \fBTrue\fP or pass a logger object to
+use. To disable logging set to \fBFalse\fP\&. The default is
+\fBFalse\fP\&.
+.IP \(bu 2
+\fBbinary\fP \-\- \fBTrue\fP to support binary payloads, \fBFalse\fP to treat all
+payloads as text. On Python 2, if this is set to \fBTrue\fP,
+\fBunicode\fP values are treated as text, and \fBstr\fP and
+\fBbytes\fP values are treated as binary.  This option has no
+effect on Python 3, where text and binary payloads are
+always automatically discovered.
+.IP \(bu 2
+\fBjson\fP \-\- An alternative json module to use for encoding and decoding
+packets. Custom json modules must have \fBdumps\fP and \fBloads\fP
+functions that are compatible with the standard library
+versions.
+.UNINDENT
+.UNINDENT
+.sp
+The Engine.IO configuration supports the following settings:
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBrequest_timeout\fP \-\- A timeout in seconds for requests. The default is
+5 seconds.
+.IP \(bu 2
+\fBssl_verify\fP \-\- \fBTrue\fP to verify SSL certificates, or \fBFalse\fP to
+skip SSL certificate verification, allowing
+connections to servers with self signed certificates.
+The default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBengineio_logger\fP \-\- To enable Engine.IO logging set to \fBTrue\fP or pass
+a logger object to use. To disable logging set to
+\fBFalse\fP\&. The default is \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B call(event, data=None, namespace=None, timeout=60)
+Emit a custom event to a client and wait for the response.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBtimeout\fP \-\- The waiting timeout. If the timeout is reached before
+the client acknowledges the event, then a
+\fBTimeoutError\fP exception is raised.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B connect(url, headers={}, transports=None, namespaces=None, socketio_path=\(aqsocket.io\(aq)
+Connect to a Socket.IO server.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBurl\fP \-\- The URL of the Socket.IO server. It can include custom
+query string parameters if required by the server.
+.IP \(bu 2
+\fBheaders\fP \-\- A dictionary with custom headers to send with the
+connection request.
+.IP \(bu 2
+\fBtransports\fP \-\- The list of allowed transports. Valid transports
+are \fB\(aqpolling\(aq\fP and \fB\(aqwebsocket\(aq\fP\&. If not
+given, the polling transport is connected first,
+then an upgrade to websocket is attempted.
+.IP \(bu 2
+\fBnamespaces\fP \-\- The list of custom namespaces to connect, in
+addition to the default namespace. If not given,
+the namespace list is obtained from the registered
+event handlers.
+.IP \(bu 2
+\fBsocketio_path\fP \-\- The endpoint where the Socket.IO server is
+installed. The default value is appropriate for
+most cases.
+.UNINDENT
+.UNINDENT
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.Client()
+sio.connect(\(aqhttp://localhost:5000\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect()
+Disconnect from the server.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data=None, namespace=None, callback=None)
+Emit a custom event to one or more connected clients.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBcallback\fP \-\- If given, this function will be called to acknowledge
+the the client has received the message. The arguments
+that will be passed to the function are those provided
+by the client. Callback functions can only be used
+when addressing an individual client.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B event(*args, **kwargs)
+Decorator to register an event handler.
+.sp
+This is a simplified version of the \fBon()\fP method that takes the
+event name from the decorated function.
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above example is equivalent to:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.on(\(aqmy_event\(aq)
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A custom namespace can be given as an argument to the decorator:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event(namespace=\(aq/test\(aq)
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B on(event, handler=None, namespace=None)
+Register an event handler.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBhandler\fP \-\- The function that should be invoked to handle the
+event. When this parameter is not given, the method
+acts as a decorator for the handler function.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the handler is associated with
+the default namespace.
+.UNINDENT
+.UNINDENT
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# as a decorator:
+@sio.on(\(aqconnect\(aq)
+def connect_handler():
+    print(\(aqConnected!\(aq)
+
+# as a method:
+def message_handler(msg):
+    print(\(aqReceived message: \(aq, msg)
+    sio.send( \(aqresponse\(aq)
+sio.on(\(aqmessage\(aq, message_handler)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fB\(aqconnect\(aq\fP event handler receives no arguments. The
+\fB\(aqmessage\(aq\fP handler and handlers for custom event names receive the
+message payload as only argument. Any values returned from a message
+handler will be passed to the client\(aqs acknowledgement callback
+function if it exists. The \fB\(aqdisconnect\(aq\fP handler does not take
+arguments.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B register_namespace(namespace_handler)
+Register a namespace handler object.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBnamespace_handler\fP \-\- An instance of a \fI\%Namespace\fP
+subclass that handles all the event traffic
+for a namespace.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B send(data, namespace=None, callback=None)
+Send a message to one or more connected clients.
+.sp
+This function emits an event with the name \fB\(aqmessage\(aq\fP\&. Use
+\fI\%emit()\fP to issue custom event names.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBcallback\fP \-\- If given, this function will be called to acknowledge
+the the client has received the message. The arguments
+that will be passed to the function are those provided
+by the client. Callback functions can only be used
+when addressing an individual client.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sleep(seconds=0)
+Sleep for the requested amount of time using the appropriate async
+model.
+.sp
+This is a utility function that applications can use to put a task to
+sleep without having to worry about using the correct call for the
+selected async mode.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B start_background_task(target, *args, **kwargs)
+Start a background task using the appropriate async model.
+.sp
+This is a utility function that applications can use to start a
+background task using the method that is compatible with the
+selected async mode.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBtarget\fP \-\- the target function to execute.
+.IP \(bu 2
+\fBargs\fP \-\- arguments to pass to the function.
+.IP \(bu 2
+\fBkwargs\fP \-\- keyword arguments to pass to the function.
+.UNINDENT
+.UNINDENT
+.sp
+This function returns an object compatible with the \fIThread\fP class in
+the Python standard library. The \fIstart()\fP method on this object is
+already called by this function.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B transport()
+Return the name of the transport used by the client.
+.sp
+The two possible values returned by this function are \fB\(aqpolling\(aq\fP
+and \fB\(aqwebsocket\(aq\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B wait()
+Wait until the connection with the server ends.
+.sp
+Client applications can use this function to block the main thread
+during the life of the connection.
+.UNINDENT
+.UNINDENT
+.SS \fBAsyncClient\fP class
+.INDENT 0.0
+.TP
+.B class socketio.AsyncClient(reconnection=True, reconnection_attempts=0, reconnection_delay=1, reconnection_delay_max=5, randomization_factor=0.5, logger=False, binary=False, json=None, **kwargs)
+A Socket.IO client for asyncio.
+.sp
+This class implements a fully compliant Socket.IO web client with support
+for websocket and long\-polling transports.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBreconnection\fP \-\- \fBTrue\fP if the client should automatically attempt to
+reconnect to the server after an interruption, or
+\fBFalse\fP to not reconnect. The default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBreconnection_attempts\fP \-\- How many reconnection attempts to issue
+before giving up, or 0 for infinity attempts.
+The default is 0.
+.IP \(bu 2
+\fBreconnection_delay\fP \-\- How long to wait in seconds before the first
+reconnection attempt. Each successive attempt
+doubles this delay.
+.IP \(bu 2
+\fBreconnection_delay_max\fP \-\- The maximum delay between reconnection
+attempts.
+.IP \(bu 2
+\fBrandomization_factor\fP \-\- Randomization amount for each delay between
+reconnection attempts. The default is 0.5,
+which means that each delay is randomly
+adjusted by +/\- 50%.
+.IP \(bu 2
+\fBlogger\fP \-\- To enable logging set to \fBTrue\fP or pass a logger object to
+use. To disable logging set to \fBFalse\fP\&. The default is
+\fBFalse\fP\&.
+.IP \(bu 2
+\fBbinary\fP \-\- \fBTrue\fP to support binary payloads, \fBFalse\fP to treat all
+payloads as text. On Python 2, if this is set to \fBTrue\fP,
+\fBunicode\fP values are treated as text, and \fBstr\fP and
+\fBbytes\fP values are treated as binary.  This option has no
+effect on Python 3, where text and binary payloads are
+always automatically discovered.
+.IP \(bu 2
+\fBjson\fP \-\- An alternative json module to use for encoding and decoding
+packets. Custom json modules must have \fBdumps\fP and \fBloads\fP
+functions that are compatible with the standard library
+versions.
+.UNINDENT
+.UNINDENT
+.sp
+The Engine.IO configuration supports the following settings:
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBrequest_timeout\fP \-\- A timeout in seconds for requests. The default is
+5 seconds.
+.IP \(bu 2
+\fBssl_verify\fP \-\- \fBTrue\fP to verify SSL certificates, or \fBFalse\fP to
+skip SSL certificate verification, allowing
+connections to servers with self signed certificates.
+The default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBengineio_logger\fP \-\- To enable Engine.IO logging set to \fBTrue\fP or pass
+a logger object to use. To disable logging set to
+\fBFalse\fP\&. The default is \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B call(event, data=None, namespace=None, timeout=60)
+Emit a custom event to a client and wait for the response.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBtimeout\fP \-\- The waiting timeout. If the timeout is reached before
+the client acknowledges the event, then a
+\fBTimeoutError\fP exception is raised.
+.UNINDENT
+.UNINDENT
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B connect(url, headers={}, transports=None, namespaces=None, socketio_path=\(aqsocket.io\(aq)
+Connect to a Socket.IO server.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBurl\fP \-\- The URL of the Socket.IO server. It can include custom
+query string parameters if required by the server.
+.IP \(bu 2
+\fBheaders\fP \-\- A dictionary with custom headers to send with the
+connection request.
+.IP \(bu 2
+\fBtransports\fP \-\- The list of allowed transports. Valid transports
+are \fB\(aqpolling\(aq\fP and \fB\(aqwebsocket\(aq\fP\&. If not
+given, the polling transport is connected first,
+then an upgrade to websocket is attempted.
+.IP \(bu 2
+\fBnamespaces\fP \-\- The list of custom namespaces to connect, in
+addition to the default namespace. If not given,
+the namespace list is obtained from the registered
+event handlers.
+.IP \(bu 2
+\fBsocketio_path\fP \-\- The endpoint where the Socket.IO server is
+installed. The default value is appropriate for
+most cases.
+.UNINDENT
+.UNINDENT
+.sp
+Note: this method is a coroutine.
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sio = socketio.Client()
+sio.connect(\(aqhttp://localhost:5000\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect()
+Disconnect from the server.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data=None, namespace=None, callback=None)
+Emit a custom event to one or more connected clients.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBcallback\fP \-\- If given, this function will be called to acknowledge
+the the client has received the message. The arguments
+that will be passed to the function are those provided
+by the client. Callback functions can only be used
+when addressing an individual client.
+.UNINDENT
+.UNINDENT
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B event(*args, **kwargs)
+Decorator to register an event handler.
+.sp
+This is a simplified version of the \fBon()\fP method that takes the
+event name from the decorated function.
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above example is equivalent to:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.on(\(aqmy_event\(aq)
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A custom namespace can be given as an argument to the decorator:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event(namespace=\(aq/test\(aq)
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B on(event, handler=None, namespace=None)
+Register an event handler.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBhandler\fP \-\- The function that should be invoked to handle the
+event. When this parameter is not given, the method
+acts as a decorator for the handler function.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the handler is associated with
+the default namespace.
+.UNINDENT
+.UNINDENT
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# as a decorator:
+@sio.on(\(aqconnect\(aq)
+def connect_handler():
+    print(\(aqConnected!\(aq)
+
+# as a method:
+def message_handler(msg):
+    print(\(aqReceived message: \(aq, msg)
+    sio.send( \(aqresponse\(aq)
+sio.on(\(aqmessage\(aq, message_handler)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fB\(aqconnect\(aq\fP event handler receives no arguments. The
+\fB\(aqmessage\(aq\fP handler and handlers for custom event names receive the
+message payload as only argument. Any values returned from a message
+handler will be passed to the client\(aqs acknowledgement callback
+function if it exists. The \fB\(aqdisconnect\(aq\fP handler does not take
+arguments.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B register_namespace(namespace_handler)
+Register a namespace handler object.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBnamespace_handler\fP \-\- An instance of a \fI\%Namespace\fP
+subclass that handles all the event traffic
+for a namespace.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B send(data, namespace=None, callback=None)
+Send a message to one or more connected clients.
+.sp
+This function emits an event with the name \fB\(aqmessage\(aq\fP\&. Use
+\fI\%emit()\fP to issue custom event names.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBcallback\fP \-\- If given, this function will be called to acknowledge
+the the client has received the message. The arguments
+that will be passed to the function are those provided
+by the client. Callback functions can only be used
+when addressing an individual client.
+.UNINDENT
+.UNINDENT
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sleep(seconds=0)
+Sleep for the requested amount of time using the appropriate async
+model.
+.sp
+This is a utility function that applications can use to put a task to
+sleep without having to worry about using the correct call for the
+selected async mode.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B start_background_task(target, *args, **kwargs)
+Start a background task using the appropriate async model.
+.sp
+This is a utility function that applications can use to start a
+background task using the method that is compatible with the
+selected async mode.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBtarget\fP \-\- the target function to execute.
+.IP \(bu 2
+\fBargs\fP \-\- arguments to pass to the function.
+.IP \(bu 2
+\fBkwargs\fP \-\- keyword arguments to pass to the function.
+.UNINDENT
+.UNINDENT
+.sp
+This function returns an object compatible with the \fIThread\fP class in
+the Python standard library. The \fIstart()\fP method on this object is
+already called by this function.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B transport()
+Return the name of the transport used by the client.
+.sp
+The two possible values returned by this function are \fB\(aqpolling\(aq\fP
+and \fB\(aqwebsocket\(aq\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B wait()
+Wait until the connection with the server ends.
+.sp
+Client applications can use this function to block the main thread
+during the life of the connection.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.UNINDENT
+.SS \fBServer\fP class
+.INDENT 0.0
+.TP
+.B class socketio.Server(client_manager=None, logger=False, binary=False, json=None, async_handlers=True, always_connect=False, **kwargs)
+A Socket.IO server.
+.sp
+This class implements a fully compliant Socket.IO web server with support
+for websocket and long\-polling transports.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBclient_manager\fP \-\- The client manager instance that will manage the
+client list. When this is omitted, the client list
+is stored in an in\-memory structure, so the use of
+multiple connected servers is not possible.
+.IP \(bu 2
+\fBlogger\fP \-\- To enable logging set to \fBTrue\fP or pass a logger object to
+use. To disable logging set to \fBFalse\fP\&. The default is
+\fBFalse\fP\&.
+.IP \(bu 2
+\fBbinary\fP \-\- \fBTrue\fP to support binary payloads, \fBFalse\fP to treat all
+payloads as text. On Python 2, if this is set to \fBTrue\fP,
+\fBunicode\fP values are treated as text, and \fBstr\fP and
+\fBbytes\fP values are treated as binary.  This option has no
+effect on Python 3, where text and binary payloads are
+always automatically discovered.
+.IP \(bu 2
+\fBjson\fP \-\- An alternative json module to use for encoding and decoding
+packets. Custom json modules must have \fBdumps\fP and \fBloads\fP
+functions that are compatible with the standard library
+versions.
+.IP \(bu 2
+\fBasync_handlers\fP \-\- If set to \fBTrue\fP, event handlers for a client are
+executed in separate threads. To run handlers for a
+client synchronously, set to \fBFalse\fP\&. The default
+is \fBTrue\fP\&.
+.IP \(bu 2
+\fBalways_connect\fP \-\- When set to \fBFalse\fP, new connections are
+provisory until the connect handler returns
+something other than \fBFalse\fP, at which point they
+are accepted. When set to \fBTrue\fP, connections are
+immediately accepted, and then if the connect
+handler returns \fBFalse\fP a disconnect is issued.
+Set to \fBTrue\fP if you need to emit events from the
+connect handler and your client is confused when it
+receives events before the connection acceptance.
+In any other case use the default of \fBFalse\fP\&.
+.IP \(bu 2
+\fBkwargs\fP \-\- Connection parameters for the underlying Engine.IO server.
+.UNINDENT
+.UNINDENT
+.sp
+The Engine.IO configuration supports the following settings:
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBasync_mode\fP \-\- The asynchronous model to use. See the Deployment
+section in the documentation for a description of the
+available options. Valid async modes are "threading",
+"eventlet", "gevent" and "gevent_uwsgi". If this
+argument is not given, "eventlet" is tried first, then
+"gevent_uwsgi", then "gevent", and finally "threading".
+The first async mode that has all its dependencies
+installed is then one that is chosen.
+.IP \(bu 2
+\fBping_timeout\fP \-\- The time in seconds that the client waits for the
+server to respond before disconnecting. The default
+is 60 seconds.
+.IP \(bu 2
+\fBping_interval\fP \-\- The interval in seconds at which the client pings
+the server. The default is 25 seconds.
+.IP \(bu 2
+\fBmax_http_buffer_size\fP \-\- The maximum size of a message when using the
+polling transport. The default is 100,000,000
+bytes.
+.IP \(bu 2
+\fBallow_upgrades\fP \-\- Whether to allow transport upgrades or not. The
+default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBhttp_compression\fP \-\- Whether to compress packages when using the
+polling transport. The default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBcompression_threshold\fP \-\- Only compress messages when their byte size
+is greater than this value. The default is
+1024 bytes.
+.IP \(bu 2
+\fBcookie\fP \-\- Name of the HTTP cookie that contains the client session
+id. If set to \fBNone\fP, a cookie is not sent to the client.
+The default is \fB\(aqio\(aq\fP\&.
+.IP \(bu 2
+\fBcors_allowed_origins\fP \-\- Origin or list of origins that are allowed to
+connect to this server. Only the same origin
+is allowed by default. Set this argument to
+\fB\(aq*\(aq\fP to allow all origins, or to \fB[]\fP to
+disable CORS handling.
+.IP \(bu 2
+\fBcors_credentials\fP \-\- Whether credentials (cookies, authentication) are
+allowed in requests to this server. The default is
+\fBTrue\fP\&.
+.IP \(bu 2
+\fBmonitor_clients\fP \-\- If set to \fBTrue\fP, a background task will ensure
+inactive clients are closed. Set to \fBFalse\fP to
+disable the monitoring task (not recommended). The
+default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBengineio_logger\fP \-\- To enable Engine.IO logging set to \fBTrue\fP or pass
+a logger object to use. To disable logging set to
+\fBFalse\fP\&. The default is \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B call(event, data=None, to=None, sid=None, namespace=None, timeout=60, **kwargs)
+Emit a custom event to a client and wait for the response.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBto\fP \-\- The session ID of the recipient client.
+.IP \(bu 2
+\fBsid\fP \-\- Alias for the \fBto\fP parameter.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBtimeout\fP \-\- The waiting timeout. If the timeout is reached before
+the client acknowledges the event, then a
+\fBTimeoutError\fP exception is raised.
+.IP \(bu 2
+\fBignore_queue\fP \-\- Only used when a message queue is configured. If
+set to \fBTrue\fP, the event is emitted to the
+client directly, without going through the queue.
+This is more efficient, but only works when a
+single server process is used. It is recommended
+to always leave this parameter with its default
+value of \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close_room(room, namespace=None)
+Close a room.
+.sp
+This function removes all the clients from the given room.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBroom\fP \-\- Room name.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect(sid, namespace=None)
+Disconnect a client.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- Session ID of the client.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace to disconnect. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data=None, to=None, room=None, skip_sid=None, namespace=None, callback=None, **kwargs)
+Emit a custom event to one or more connected clients.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBto\fP \-\- The recipient of the message. This can be set to the
+session ID of a client to address only that client, or to
+to any custom room created by the application to address all
+the clients in that room, If this argument is omitted the
+event is broadcasted to all connected clients.
+.IP \(bu 2
+\fBroom\fP \-\- Alias for the \fBto\fP parameter.
+.IP \(bu 2
+\fBskip_sid\fP \-\- The session ID of a client to skip when broadcasting
+to a room or to all clients. This can be used to
+prevent a message from being sent to the sender. To
+skip multiple sids, pass a list.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBcallback\fP \-\- If given, this function will be called to acknowledge
+the the client has received the message. The arguments
+that will be passed to the function are those provided
+by the client. Callback functions can only be used
+when addressing an individual client.
+.IP \(bu 2
+\fBignore_queue\fP \-\- Only used when a message queue is configured. If
+set to \fBTrue\fP, the event is emitted to the
+clients directly, without going through the queue.
+This is more efficient, but only works when a
+single server process is used. It is recommended
+to always leave this parameter with its default
+value of \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B enter_room(sid, room, namespace=None)
+Enter a room.
+.sp
+This function adds the client to a room. The \fI\%emit()\fP and
+\fI\%send()\fP functions can optionally broadcast events to all the
+clients in a room.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- Session ID of the client.
+.IP \(bu 2
+\fBroom\fP \-\- Room name. If the room does not exist it is created.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B event(*args, **kwargs)
+Decorator to register an event handler.
+.sp
+This is a simplified version of the \fBon()\fP method that takes the
+event name from the decorated function.
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above example is equivalent to:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.on(\(aqmy_event\(aq)
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A custom namespace can be given as an argument to the decorator:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event(namespace=\(aq/test\(aq)
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_session(sid, namespace=None)
+Return the user session for a client.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- The session id of the client.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace. If this argument is omitted
+the default namespace is used.
+.UNINDENT
+.UNINDENT
+.sp
+The return value is a dictionary. Modifications made to this
+dictionary are not guaranteed to be preserved unless
+\fBsave_session()\fP is called, or when the \fBsession\fP context manager
+is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B handle_request(environ, start_response)
+Handle an HTTP request from the client.
+.sp
+This is the entry point of the Socket.IO application, using the same
+interface as a WSGI application. For the typical usage, this function
+is invoked by the \fI\%Middleware\fP instance, but it can be invoked
+directly when the middleware is not used.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBenviron\fP \-\- The WSGI environment.
+.IP \(bu 2
+\fBstart_response\fP \-\- The WSGI \fBstart_response\fP function.
+.UNINDENT
+.UNINDENT
+.sp
+This function returns the HTTP response body to deliver to the client
+as a byte sequence.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B leave_room(sid, room, namespace=None)
+Leave a room.
+.sp
+This function removes the client from a room.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- Session ID of the client.
+.IP \(bu 2
+\fBroom\fP \-\- Room name.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B on(event, handler=None, namespace=None)
+Register an event handler.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBhandler\fP \-\- The function that should be invoked to handle the
+event. When this parameter is not given, the method
+acts as a decorator for the handler function.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the handler is associated with
+the default namespace.
+.UNINDENT
+.UNINDENT
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# as a decorator:
+@socket_io.on(\(aqconnect\(aq, namespace=\(aq/chat\(aq)
+def connect_handler(sid, environ):
+    print(\(aqConnection request\(aq)
+    if environ[\(aqREMOTE_ADDR\(aq] in blacklisted:
+        return False  # reject
+
+# as a method:
+def message_handler(sid, msg):
+    print(\(aqReceived message: \(aq, msg)
+    eio.send(sid, \(aqresponse\(aq)
+socket_io.on(\(aqmessage\(aq, namespace=\(aq/chat\(aq, message_handler)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The handler function receives the \fBsid\fP (session ID) for the
+client as first argument. The \fB\(aqconnect\(aq\fP event handler receives the
+WSGI environment as a second argument, and can return \fBFalse\fP to
+reject the connection. The \fB\(aqmessage\(aq\fP handler and handlers for
+custom event names receive the message payload as a second argument.
+Any values returned from a message handler will be passed to the
+client\(aqs acknowledgement callback function if it exists. The
+\fB\(aqdisconnect\(aq\fP handler does not take a second argument.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B register_namespace(namespace_handler)
+Register a namespace handler object.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBnamespace_handler\fP \-\- An instance of a \fI\%Namespace\fP
+subclass that handles all the event traffic
+for a namespace.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rooms(sid, namespace=None)
+Return the rooms a client is in.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- Session ID of the client.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B save_session(sid, session, namespace=None)
+Store the user session for a client.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- The session id of the client.
+.IP \(bu 2
+\fBsession\fP \-\- The session dictionary.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace. If this argument is omitted
+the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B send(data, to=None, room=None, skip_sid=None, namespace=None, callback=None, **kwargs)
+Send a message to one or more connected clients.
+.sp
+This function emits an event with the name \fB\(aqmessage\(aq\fP\&. Use
+\fI\%emit()\fP to issue custom event names.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBto\fP \-\- The recipient of the message. This can be set to the
+session ID of a client to address only that client, or to
+to any custom room created by the application to address all
+the clients in that room, If this argument is omitted the
+event is broadcasted to all connected clients.
+.IP \(bu 2
+\fBroom\fP \-\- Alias for the \fBto\fP parameter.
+.IP \(bu 2
+\fBskip_sid\fP \-\- The session ID of a client to skip when broadcasting
+to a room or to all clients. This can be used to
+prevent a message from being sent to the sender. To
+skip multiple sids, pass a list.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBcallback\fP \-\- If given, this function will be called to acknowledge
+the the client has received the message. The arguments
+that will be passed to the function are those provided
+by the client. Callback functions can only be used
+when addressing an individual client.
+.IP \(bu 2
+\fBignore_queue\fP \-\- Only used when a message queue is configured. If
+set to \fBTrue\fP, the event is emitted to the
+clients directly, without going through the queue.
+This is more efficient, but only works when a
+single server process is used. It is recommended
+to always leave this parameter with its default
+value of \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B session(sid, namespace=None)
+Return the user session for a client with context manager syntax.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBsid\fP \-\- The session id of the client.
+.UNINDENT
+.sp
+This is a context manager that returns the user session dictionary for
+the client. Any changes that are made to this dictionary inside the
+context manager block are saved back to the session. Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.on(\(aqconnect\(aq)
+def on_connect(sid, environ):
+    username = authenticate_user(environ)
+    if not username:
+        return False
+    with sio.session(sid) as session:
+        session[\(aqusername\(aq] = username
+
+@sio.on(\(aqmessage\(aq)
+def on_message(sid, msg):
+    with sio.session(sid) as session:
+        print(\(aqreceived message from \(aq, session[\(aqusername\(aq])
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sleep(seconds=0)
+Sleep for the requested amount of time using the appropriate async
+model.
+.sp
+This is a utility function that applications can use to put a task to
+sleep without having to worry about using the correct call for the
+selected async mode.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B start_background_task(target, *args, **kwargs)
+Start a background task using the appropriate async model.
+.sp
+This is a utility function that applications can use to start a
+background task using the method that is compatible with the
+selected async mode.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBtarget\fP \-\- the target function to execute.
+.IP \(bu 2
+\fBargs\fP \-\- arguments to pass to the function.
+.IP \(bu 2
+\fBkwargs\fP \-\- keyword arguments to pass to the function.
+.UNINDENT
+.UNINDENT
+.sp
+This function returns an object compatible with the \fIThread\fP class in
+the Python standard library. The \fIstart()\fP method on this object is
+already called by this function.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B transport(sid)
+Return the name of the transport used by the client.
+.sp
+The two possible values returned by this function are \fB\(aqpolling\(aq\fP
+and \fB\(aqwebsocket\(aq\fP\&.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBsid\fP \-\- The session of the client.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS \fBAsyncServer\fP class
+.INDENT 0.0
+.TP
+.B class socketio.AsyncServer(client_manager=None, logger=False, json=None, async_handlers=True, **kwargs)
+A Socket.IO server for asyncio.
+.sp
+This class implements a fully compliant Socket.IO web server with support
+for websocket and long\-polling transports, compatible with the asyncio
+framework on Python 3.5 or newer.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBclient_manager\fP \-\- The client manager instance that will manage the
+client list. When this is omitted, the client list
+is stored in an in\-memory structure, so the use of
+multiple connected servers is not possible.
+.IP \(bu 2
+\fBlogger\fP \-\- To enable logging set to \fBTrue\fP or pass a logger object to
+use. To disable logging set to \fBFalse\fP\&.
+.IP \(bu 2
+\fBjson\fP \-\- An alternative json module to use for encoding and decoding
+packets. Custom json modules must have \fBdumps\fP and \fBloads\fP
+functions that are compatible with the standard library
+versions.
+.IP \(bu 2
+\fBasync_handlers\fP \-\- If set to \fBTrue\fP, event handlers are executed in
+separate threads. To run handlers synchronously,
+set to \fBFalse\fP\&. The default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBkwargs\fP \-\- Connection parameters for the underlying Engine.IO server.
+.UNINDENT
+.UNINDENT
+.sp
+The Engine.IO configuration supports the following settings:
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBasync_mode\fP \-\- The asynchronous model to use. See the Deployment
+section in the documentation for a description of the
+available options. Valid async modes are "aiohttp". If
+this argument is not given, an async mode is chosen
+based on the installed packages.
+.IP \(bu 2
+\fBping_timeout\fP \-\- The time in seconds that the client waits for the
+server to respond before disconnecting.
+.IP \(bu 2
+\fBping_interval\fP \-\- The interval in seconds at which the client pings
+the server.
+.IP \(bu 2
+\fBmax_http_buffer_size\fP \-\- The maximum size of a message when using the
+polling transport.
+.IP \(bu 2
+\fBallow_upgrades\fP \-\- Whether to allow transport upgrades or not.
+.IP \(bu 2
+\fBhttp_compression\fP \-\- Whether to compress packages when using the
+polling transport.
+.IP \(bu 2
+\fBcompression_threshold\fP \-\- Only compress messages when their byte size
+is greater than this value.
+.IP \(bu 2
+\fBcookie\fP \-\- Name of the HTTP cookie that contains the client session
+id. If set to \fBNone\fP, a cookie is not sent to the client.
+.IP \(bu 2
+\fBcors_allowed_origins\fP \-\- Origin or list of origins that are allowed to
+connect to this server. Only the same origin
+is allowed by default. Set this argument to
+\fB\(aq*\(aq\fP to allow all origins, or to \fB[]\fP to
+disable CORS handling.
+.IP \(bu 2
+\fBcors_credentials\fP \-\- Whether credentials (cookies, authentication) are
+allowed in requests to this server.
+.IP \(bu 2
+\fBmonitor_clients\fP \-\- If set to \fBTrue\fP, a background task will ensure
+inactive clients are closed. Set to \fBFalse\fP to
+disable the monitoring task (not recommended). The
+default is \fBTrue\fP\&.
+.IP \(bu 2
+\fBengineio_logger\fP \-\- To enable Engine.IO logging set to \fBTrue\fP or pass
+a logger object to use. To disable logging set to
+\fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B attach(app, socketio_path=\(aqsocket.io\(aq)
+Attach the Socket.IO server to an application.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B call(event, data=None, to=None, sid=None, namespace=None, timeout=60, **kwargs)
+Emit a custom event to a client and wait for the response.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBto\fP \-\- The session ID of the recipient client.
+.IP \(bu 2
+\fBsid\fP \-\- Alias for the \fBto\fP parameter.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBtimeout\fP \-\- The waiting timeout. If the timeout is reached before
+the client acknowledges the event, then a
+\fBTimeoutError\fP exception is raised.
+.IP \(bu 2
+\fBignore_queue\fP \-\- Only used when a message queue is configured. If
+set to \fBTrue\fP, the event is emitted to the
+client directly, without going through the queue.
+This is more efficient, but only works when a
+single server process is used. It is recommended
+to always leave this parameter with its default
+value of \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close_room(room, namespace=None)
+Close a room.
+.sp
+This function removes all the clients from the given room.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBroom\fP \-\- Room name.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect(sid, namespace=None)
+Disconnect a client.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- Session ID of the client.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace to disconnect. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data=None, to=None, room=None, skip_sid=None, namespace=None, callback=None, **kwargs)
+Emit a custom event to one or more connected clients.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBto\fP \-\- The recipient of the message. This can be set to the
+session ID of a client to address only that client, or to
+to any custom room created by the application to address all
+the clients in that room, If this argument is omitted the
+event is broadcasted to all connected clients.
+.IP \(bu 2
+\fBroom\fP \-\- Alias for the \fBto\fP parameter.
+.IP \(bu 2
+\fBskip_sid\fP \-\- The session ID of a client to skip when broadcasting
+to a room or to all clients. This can be used to
+prevent a message from being sent to the sender.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBcallback\fP \-\- If given, this function will be called to acknowledge
+the the client has received the message. The arguments
+that will be passed to the function are those provided
+by the client. Callback functions can only be used
+when addressing an individual client.
+.IP \(bu 2
+\fBignore_queue\fP \-\- Only used when a message queue is configured. If
+set to \fBTrue\fP, the event is emitted to the
+clients directly, without going through the queue.
+This is more efficient, but only works when a
+single server process is used. It is recommended
+to always leave this parameter with its default
+value of \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B enter_room(sid, room, namespace=None)
+Enter a room.
+.sp
+This function adds the client to a room. The \fI\%emit()\fP and
+\fI\%send()\fP functions can optionally broadcast events to all the
+clients in a room.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- Session ID of the client.
+.IP \(bu 2
+\fBroom\fP \-\- Room name. If the room does not exist it is created.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B event(*args, **kwargs)
+Decorator to register an event handler.
+.sp
+This is a simplified version of the \fBon()\fP method that takes the
+event name from the decorated function.
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above example is equivalent to:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.on(\(aqmy_event\(aq)
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+A custom namespace can be given as an argument to the decorator:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@sio.event(namespace=\(aq/test\(aq)
+def my_event(data):
+    print(\(aqReceived data: \(aq, data)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_session(sid, namespace=None)
+Return the user session for a client.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- The session id of the client.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace. If this argument is omitted
+the default namespace is used.
+.UNINDENT
+.UNINDENT
+.sp
+The return value is a dictionary. Modifications made to this
+dictionary are not guaranteed to be preserved. If you want to modify
+the user session, use the \fBsession\fP context manager instead.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B handle_request(*args, **kwargs)
+Handle an HTTP request from the client.
+.sp
+This is the entry point of the Socket.IO application. This function
+returns the HTTP response body to deliver to the client.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B leave_room(sid, room, namespace=None)
+Leave a room.
+.sp
+This function removes the client from a room.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- Session ID of the client.
+.IP \(bu 2
+\fBroom\fP \-\- Room name.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B on(event, handler=None, namespace=None)
+Register an event handler.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBevent\fP \-\- The event name. It can be any string. The event names
+\fB\(aqconnect\(aq\fP, \fB\(aqmessage\(aq\fP and \fB\(aqdisconnect\(aq\fP are
+reserved and should not be used.
+.IP \(bu 2
+\fBhandler\fP \-\- The function that should be invoked to handle the
+event. When this parameter is not given, the method
+acts as a decorator for the handler function.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the handler is associated with
+the default namespace.
+.UNINDENT
+.UNINDENT
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# as a decorator:
+@socket_io.on(\(aqconnect\(aq, namespace=\(aq/chat\(aq)
+def connect_handler(sid, environ):
+    print(\(aqConnection request\(aq)
+    if environ[\(aqREMOTE_ADDR\(aq] in blacklisted:
+        return False  # reject
+
+# as a method:
+def message_handler(sid, msg):
+    print(\(aqReceived message: \(aq, msg)
+    eio.send(sid, \(aqresponse\(aq)
+socket_io.on(\(aqmessage\(aq, namespace=\(aq/chat\(aq, message_handler)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The handler function receives the \fBsid\fP (session ID) for the
+client as first argument. The \fB\(aqconnect\(aq\fP event handler receives the
+WSGI environment as a second argument, and can return \fBFalse\fP to
+reject the connection. The \fB\(aqmessage\(aq\fP handler and handlers for
+custom event names receive the message payload as a second argument.
+Any values returned from a message handler will be passed to the
+client\(aqs acknowledgement callback function if it exists. The
+\fB\(aqdisconnect\(aq\fP handler does not take a second argument.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B register_namespace(namespace_handler)
+Register a namespace handler object.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBnamespace_handler\fP \-\- An instance of a \fI\%Namespace\fP
+subclass that handles all the event traffic
+for a namespace.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rooms(sid, namespace=None)
+Return the rooms a client is in.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- Session ID of the client.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B save_session(sid, session, namespace=None)
+Store the user session for a client.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsid\fP \-\- The session id of the client.
+.IP \(bu 2
+\fBsession\fP \-\- The session dictionary.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace. If this argument is omitted
+the default namespace is used.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B send(data, to=None, room=None, skip_sid=None, namespace=None, callback=None, **kwargs)
+Send a message to one or more connected clients.
+.sp
+This function emits an event with the name \fB\(aqmessage\(aq\fP\&. Use
+\fI\%emit()\fP to issue custom event names.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBdata\fP \-\- The data to send to the client or clients. Data can be of
+type \fBstr\fP, \fBbytes\fP, \fBlist\fP or \fBdict\fP\&. If a
+\fBlist\fP or \fBdict\fP, the data will be serialized as JSON.
+.IP \(bu 2
+\fBto\fP \-\- The recipient of the message. This can be set to the
+session ID of a client to address only that client, or to
+to any custom room created by the application to address all
+the clients in that room, If this argument is omitted the
+event is broadcasted to all connected clients.
+.IP \(bu 2
+\fBroom\fP \-\- Alias for the \fBto\fP parameter.
+.IP \(bu 2
+\fBskip_sid\fP \-\- The session ID of a client to skip when broadcasting
+to a room or to all clients. This can be used to
+prevent a message from being sent to the sender.
+.IP \(bu 2
+\fBnamespace\fP \-\- The Socket.IO namespace for the event. If this
+argument is omitted the event is emitted to the
+default namespace.
+.IP \(bu 2
+\fBcallback\fP \-\- If given, this function will be called to acknowledge
+the the client has received the message. The arguments
+that will be passed to the function are those provided
+by the client. Callback functions can only be used
+when addressing an individual client.
+.IP \(bu 2
+\fBignore_queue\fP \-\- Only used when a message queue is configured. If
+set to \fBTrue\fP, the event is emitted to the
+clients directly, without going through the queue.
+This is more efficient, but only works when a
+single server process is used. It is recommended
+to always leave this parameter with its default
+value of \fBFalse\fP\&.
+.UNINDENT
+.UNINDENT
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B session(sid, namespace=None)
+Return the user session for a client with context manager syntax.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBsid\fP \-\- The session id of the client.
+.UNINDENT
+.sp
+This is a context manager that returns the user session dictionary for
+the client. Any changes that are made to this dictionary inside the
+context manager block are saved back to the session. Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@eio.on(\(aqconnect\(aq)
+def on_connect(sid, environ):
+    username = authenticate_user(environ)
+    if not username:
+        return False
+    with eio.session(sid) as session:
+        session[\(aqusername\(aq] = username
+
+@eio.on(\(aqmessage\(aq)
+def on_message(sid, msg):
+    async with eio.session(sid) as session:
+        print(\(aqreceived message from \(aq, session[\(aqusername\(aq])
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sleep(seconds=0)
+Sleep for the requested amount of time using the appropriate async
+model.
+.sp
+This is a utility function that applications can use to put a task to
+sleep without having to worry about using the correct call for the
+selected async mode.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B start_background_task(target, *args, **kwargs)
+Start a background task using the appropriate async model.
+.sp
+This is a utility function that applications can use to start a
+background task using the method that is compatible with the
+selected async mode.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBtarget\fP \-\- the target function to execute. Must be a coroutine.
+.IP \(bu 2
+\fBargs\fP \-\- arguments to pass to the function.
+.IP \(bu 2
+\fBkwargs\fP \-\- keyword arguments to pass to the function.
+.UNINDENT
+.UNINDENT
+.sp
+The return value is a \fBasyncio.Task\fP object.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B transport(sid)
+Return the name of the transport used by the client.
+.sp
+The two possible values returned by this function are \fB\(aqpolling\(aq\fP
+and \fB\(aqwebsocket\(aq\fP\&.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBsid\fP \-\- The session of the client.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS \fBConnectionRefusedError\fP class
+.SS \fBWSGIApp\fP class
+.INDENT 0.0
+.TP
+.B class socketio.WSGIApp(socketio_app, wsgi_app=None, static_files=None, socketio_path=\(aqsocket.io\(aq)
+WSGI middleware for Socket.IO.
+.sp
+This middleware dispatches traffic to a Socket.IO application. It can also
+serve a list of static files to the client, or forward unrelated HTTP
+traffic to another WSGI application.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsocketio_app\fP \-\- The Socket.IO server. Must be an instance of the
+\fBsocketio.Server\fP class.
+.IP \(bu 2
+\fBwsgi_app\fP \-\- The WSGI app that receives all other traffic.
+.IP \(bu 2
+\fBstatic_files\fP \-\- A dictionary with static file mapping rules. See the
+documentation for details on this argument.
+.IP \(bu 2
+\fBsocketio_path\fP \-\- The endpoint where the Socket.IO application should
+be installed. The default value is appropriate for
+most cases.
+.UNINDENT
+.UNINDENT
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import socketio
+import eventlet
+from . import wsgi_app
+
+sio = socketio.Server()
+app = socketio.WSGIApp(sio, wsgi_app)
+eventlet.wsgi.server(eventlet.listen((\(aq\(aq, 8000)), app)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS \fBASGIApp\fP class
+.INDENT 0.0
+.TP
+.B class socketio.ASGIApp(socketio_server, other_asgi_app=None, static_files=None, socketio_path=\(aqsocket.io\(aq)
+ASGI application middleware for Socket.IO.
+.sp
+This middleware dispatches traffic to an Socket.IO application. It can
+also serve a list of static files to the client, or forward unrelated
+HTTP traffic to another ASGI application.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsocketio_server\fP \-\- The Socket.IO server. Must be an instance of the
+\fBsocketio.AsyncServer\fP class.
+.IP \(bu 2
+\fBstatic_files\fP \-\- A dictionary with static file mapping rules. See the
+documentation for details on this argument.
+.IP \(bu 2
+\fBother_asgi_app\fP \-\- A separate ASGI app that receives all other traffic.
+.IP \(bu 2
+\fBsocketio_path\fP \-\- The endpoint where the Socket.IO application should
+be installed. The default value is appropriate for
+most cases.
+.UNINDENT
+.UNINDENT
+.sp
+Example usage:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import socketio
+import uvicorn
+
+sio = socketio.AsyncServer()
+app = engineio.ASGIApp(sio, static_files={
+    \(aq/\(aq: \(aqindex.html\(aq,
+    \(aq/static\(aq: \(aq./public\(aq,
+})
+uvicorn.run(app, host=\(aq127.0.0.1\(aq, port=5000)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS \fBMiddleware\fP class (deprecated)
+.INDENT 0.0
+.TP
+.B class socketio.Middleware(socketio_app, wsgi_app=None, socketio_path=\(aqsocket.io\(aq)
+This class has been renamed to WSGIApp and is now deprecated.
+.UNINDENT
+.SS \fBClientNamespace\fP class
+.INDENT 0.0
+.TP
+.B class socketio.ClientNamespace(namespace=None)
+Base class for client\-side class\-based namespaces.
+.sp
+A class\-based namespace is a class that contains all the event handlers
+for a Socket.IO namespace. The event handlers are methods of the class
+with the prefix \fBon_\fP, such as \fBon_connect\fP, \fBon_disconnect\fP,
+\fBon_message\fP, \fBon_json\fP, and so on.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBnamespace\fP \-\- The Socket.IO namespace to be used with all the event
+handlers defined in this class. If this argument is
+omitted, the default namespace is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect()
+Disconnect from the server.
+.sp
+The only difference with the \fI\%socketio.Client.disconnect()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data=None, namespace=None, callback=None)
+Emit a custom event to the server.
+.sp
+The only difference with the \fI\%socketio.Client.emit()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B send(data, room=None, skip_sid=None, namespace=None, callback=None)
+Send a message to the server.
+.sp
+The only difference with the \fI\%socketio.Client.send()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B trigger_event(event, *args)
+Dispatch an event to the proper handler method.
+.sp
+In the most common usage, this method is not overloaded by subclasses,
+as it performs the routing of events to methods. However, this
+method can be overridden if special dispatching rules are needed, or if
+having a single method that catches all events is desired.
+.UNINDENT
+.UNINDENT
+.SS \fBNamespace\fP class
+.INDENT 0.0
+.TP
+.B class socketio.Namespace(namespace=None)
+Base class for server\-side class\-based namespaces.
+.sp
+A class\-based namespace is a class that contains all the event handlers
+for a Socket.IO namespace. The event handlers are methods of the class
+with the prefix \fBon_\fP, such as \fBon_connect\fP, \fBon_disconnect\fP,
+\fBon_message\fP, \fBon_json\fP, and so on.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBnamespace\fP \-\- The Socket.IO namespace to be used with all the event
+handlers defined in this class. If this argument is
+omitted, the default namespace is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close_room(room, namespace=None)
+Close a room.
+.sp
+The only difference with the \fI\%socketio.Server.close_room()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect(sid, namespace=None)
+Disconnect a client.
+.sp
+The only difference with the \fI\%socketio.Server.disconnect()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data=None, room=None, skip_sid=None, namespace=None, callback=None)
+Emit a custom event to one or more connected clients.
+.sp
+The only difference with the \fI\%socketio.Server.emit()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B enter_room(sid, room, namespace=None)
+Enter a room.
+.sp
+The only difference with the \fI\%socketio.Server.enter_room()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_session(sid, namespace=None)
+Return the user session for a client.
+.sp
+The only difference with the \fI\%socketio.Server.get_session()\fP
+method is that when the \fBnamespace\fP argument is not given the
+namespace associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B leave_room(sid, room, namespace=None)
+Leave a room.
+.sp
+The only difference with the \fI\%socketio.Server.leave_room()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rooms(sid, namespace=None)
+Return the rooms a client is in.
+.sp
+The only difference with the \fI\%socketio.Server.rooms()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B save_session(sid, session, namespace=None)
+Store the user session for a client.
+.sp
+The only difference with the \fI\%socketio.Server.save_session()\fP
+method is that when the \fBnamespace\fP argument is not given the
+namespace associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B send(data, room=None, skip_sid=None, namespace=None, callback=None)
+Send a message to one or more connected clients.
+.sp
+The only difference with the \fI\%socketio.Server.send()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B session(sid, namespace=None)
+Return the user session for a client with context manager syntax.
+.sp
+The only difference with the \fI\%socketio.Server.session()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B trigger_event(event, *args)
+Dispatch an event to the proper handler method.
+.sp
+In the most common usage, this method is not overloaded by subclasses,
+as it performs the routing of events to methods. However, this
+method can be overridden if special dispatching rules are needed, or if
+having a single method that catches all events is desired.
+.UNINDENT
+.UNINDENT
+.SS \fBAsyncClientNamespace\fP class
+.INDENT 0.0
+.TP
+.B class socketio.AsyncClientNamespace(namespace=None)
+Base class for asyncio client\-side class\-based namespaces.
+.sp
+A class\-based namespace is a class that contains all the event handlers
+for a Socket.IO namespace. The event handlers are methods of the class
+with the prefix \fBon_\fP, such as \fBon_connect\fP, \fBon_disconnect\fP,
+\fBon_message\fP, \fBon_json\fP, and so on. These can be regular functions or
+coroutines.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBnamespace\fP \-\- The Socket.IO namespace to be used with all the event
+handlers defined in this class. If this argument is
+omitted, the default namespace is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect()
+Disconnect a client.
+.sp
+The only difference with the \fI\%socketio.Client.disconnect()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data=None, namespace=None, callback=None)
+Emit a custom event to the server.
+.sp
+The only difference with the \fI\%socketio.Client.emit()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B send(data, namespace=None, callback=None)
+Send a message to the server.
+.sp
+The only difference with the \fI\%socketio.Client.send()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B trigger_event(event, *args)
+Dispatch an event to the proper handler method.
+.sp
+In the most common usage, this method is not overloaded by subclasses,
+as it performs the routing of events to methods. However, this
+method can be overridden if special dispatching rules are needed, or if
+having a single method that catches all events is desired.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.UNINDENT
+.SS \fBAsyncNamespace\fP class
+.INDENT 0.0
+.TP
+.B class socketio.AsyncNamespace(namespace=None)
+Base class for asyncio server\-side class\-based namespaces.
+.sp
+A class\-based namespace is a class that contains all the event handlers
+for a Socket.IO namespace. The event handlers are methods of the class
+with the prefix \fBon_\fP, such as \fBon_connect\fP, \fBon_disconnect\fP,
+\fBon_message\fP, \fBon_json\fP, and so on. These can be regular functions or
+coroutines.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBnamespace\fP \-\- The Socket.IO namespace to be used with all the event
+handlers defined in this class. If this argument is
+omitted, the default namespace is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close_room(room, namespace=None)
+Close a room.
+.sp
+The only difference with the \fI\%socketio.Server.close_room()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect(sid, namespace=None)
+Disconnect a client.
+.sp
+The only difference with the \fI\%socketio.Server.disconnect()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data=None, room=None, skip_sid=None, namespace=None, callback=None)
+Emit a custom event to one or more connected clients.
+.sp
+The only difference with the \fI\%socketio.Server.emit()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B enter_room(sid, room, namespace=None)
+Enter a room.
+.sp
+The only difference with the \fI\%socketio.Server.enter_room()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_session(sid, namespace=None)
+Return the user session for a client.
+.sp
+The only difference with the \fI\%socketio.Server.get_session()\fP
+method is that when the \fBnamespace\fP argument is not given the
+namespace associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B leave_room(sid, room, namespace=None)
+Leave a room.
+.sp
+The only difference with the \fI\%socketio.Server.leave_room()\fP method
+is that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rooms(sid, namespace=None)
+Return the rooms a client is in.
+.sp
+The only difference with the \fI\%socketio.Server.rooms()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B save_session(sid, session, namespace=None)
+Store the user session for a client.
+.sp
+The only difference with the \fI\%socketio.Server.save_session()\fP
+method is that when the \fBnamespace\fP argument is not given the
+namespace associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B send(data, room=None, skip_sid=None, namespace=None, callback=None)
+Send a message to one or more connected clients.
+.sp
+The only difference with the \fI\%socketio.Server.send()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B session(sid, namespace=None)
+Return the user session for a client with context manager syntax.
+.sp
+The only difference with the \fI\%socketio.Server.session()\fP method is
+that when the \fBnamespace\fP argument is not given the namespace
+associated with the class is used.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B trigger_event(event, *args)
+Dispatch an event to the proper handler method.
+.sp
+In the most common usage, this method is not overloaded by subclasses,
+as it performs the routing of events to methods. However, this
+method can be overridden if special dispatching rules are needed, or if
+having a single method that catches all events is desired.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.UNINDENT
+.SS \fBBaseManager\fP class
+.INDENT 0.0
+.TP
+.B class socketio.BaseManager
+Manage client connections.
+.sp
+This class keeps track of all the clients and the rooms they are in, to
+support the broadcasting of messages. The data used by this class is
+stored in a memory structure, making it appropriate only for single process
+services. More sophisticated storage backends can be implemented by
+subclasses.
+.INDENT 7.0
+.TP
+.B close_room(room, namespace)
+Remove all participants from a room.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B connect(sid, namespace)
+Register a client connection to a namespace.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect(sid, namespace)
+Register a client disconnect from a namespace.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data, namespace, room=None, skip_sid=None, callback=None, **kwargs)
+Emit a message to a single client, a room, or all the clients
+connected to the namespace.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B enter_room(sid, namespace, room)
+Add a client to a room.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_namespaces()
+Return an iterable with the active namespace names.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_participants(namespace, room)
+Return an iterable with the active participants in a room.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_rooms(sid, namespace)
+Return the rooms a client is in.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B initialize()
+Invoked before the first request is received. Subclasses can add
+their initialization code here.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B leave_room(sid, namespace, room)
+Remove a client from a room.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pre_disconnect(sid, namespace)
+Put the client in the to\-be\-disconnected list.
+.sp
+This allows the client data structures to be present while the
+disconnect handler is invoked, but still recognize the fact that the
+client is soon going away.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B trigger_callback(sid, namespace, id, data)
+Invoke an application callback.
+.UNINDENT
+.UNINDENT
+.SS \fBPubSubManager\fP class
+.INDENT 0.0
+.TP
+.B class socketio.PubSubManager(channel=\(aqsocketio\(aq, write_only=False, logger=None)
+Manage a client list attached to a pub/sub backend.
+.sp
+This is a base class that enables multiple servers to share the list of
+clients, with the servers communicating events through a pub/sub backend.
+The use of a pub/sub backend also allows any client connected to the
+backend to emit events addressed to Socket.IO clients.
+.sp
+The actual backends must be implemented by subclasses, this class only
+provides a pub/sub generic framework.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBchannel\fP \-\- The channel name on which the server sends and receives
+notifications.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close_room(room, namespace=None)
+Remove all participants from a room.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data, namespace=None, room=None, skip_sid=None, callback=None, **kwargs)
+Emit a message to a single client, a room, or all the clients
+connected to the namespace.
+.sp
+This method takes care or propagating the message to all the servers
+that are connected through the message queue.
+.sp
+The parameters are the same as in \fI\%Server.emit()\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B initialize()
+Invoked before the first request is received. Subclasses can add
+their initialization code here.
+.UNINDENT
+.UNINDENT
+.SS \fBKombuManager\fP class
+.INDENT 0.0
+.TP
+.B class socketio.KombuManager(url=\(aqamqp://guest:guest@localhost:5672//\(aq, channel=\(aqsocketio\(aq, write_only=False, logger=None, connection_options=None, exchange_options=None, queue_options=None, producer_options=None)
+Client manager that uses kombu for inter\-process messaging.
+.sp
+This class implements a client manager backend for event sharing across
+multiple processes, using RabbitMQ, Redis or any other messaging mechanism
+supported by \fI\%kombu\fP\&.
+.sp
+To use a kombu backend, initialize the \fI\%Server\fP instance as
+follows:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+url = \(aqamqp://user:password@hostname:port//\(aq
+server = socketio.Server(client_manager=socketio.KombuManager(url))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBurl\fP \-\- The connection URL for the backend messaging queue. Example
+connection URLs are \fB\(aqamqp://guest:guest@localhost:5672//\(aq\fP
+and \fB\(aqredis://localhost:6379/\(aq\fP for RabbitMQ and Redis
+respectively. Consult the \fI\%kombu documentation\fP for more on how to construct
+connection URLs.
+.IP \(bu 2
+\fBchannel\fP \-\- The channel name on which the server sends and receives
+notifications. Must be the same in all the servers.
+.IP \(bu 2
+\fBwrite_only\fP \-\- If set to \fBTrue\fP, only initialize to emit events. The
+default of \fBFalse\fP initializes the class for emitting
+and receiving.
+.IP \(bu 2
+\fBconnection_options\fP \-\- additional keyword arguments to be passed to
+\fBkombu.Connection()\fP\&.
+.IP \(bu 2
+\fBexchange_options\fP \-\- additional keyword arguments to be passed to
+\fBkombu.Exchange()\fP\&.
+.IP \(bu 2
+\fBqueue_options\fP \-\- additional keyword arguments to be passed to
+\fBkombu.Queue()\fP\&.
+.IP \(bu 2
+\fBproducer_options\fP \-\- additional keyword arguments to be passed to
+\fBkombu.Producer()\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B initialize()
+Invoked before the first request is received. Subclasses can add
+their initialization code here.
+.UNINDENT
+.UNINDENT
+.SS \fBRedisManager\fP class
+.INDENT 0.0
+.TP
+.B class socketio.RedisManager(url=\(aqredis://localhost:6379/0\(aq, channel=\(aqsocketio\(aq, write_only=False, logger=None, redis_options=None)
+Redis based client manager.
+.sp
+This class implements a Redis backend for event sharing across multiple
+processes. Only kept here as one more example of how to build a custom
+backend, since the kombu backend is perfectly adequate to support a Redis
+message queue.
+.sp
+To use a Redis backend, initialize the \fI\%Server\fP instance as
+follows:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+url = \(aqredis://hostname:port/0\(aq
+server = socketio.Server(client_manager=socketio.RedisManager(url))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBurl\fP \-\- The connection URL for the Redis server. For a default Redis
+store running on the same host, use \fBredis://\fP\&.
+.IP \(bu 2
+\fBchannel\fP \-\- The channel name on which the server sends and receives
+notifications. Must be the same in all the servers.
+.IP \(bu 2
+\fBwrite_only\fP \-\- If set to \fBTrue\fP, only initialize to emit events. The
+default of \fBFalse\fP initializes the class for emitting
+and receiving.
+.IP \(bu 2
+\fBredis_options\fP \-\- additional keyword arguments to be passed to
+\fBRedis.from_url()\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B initialize()
+Invoked before the first request is received. Subclasses can add
+their initialization code here.
+.UNINDENT
+.UNINDENT
+.SS \fBKafkaManager\fP class
+.INDENT 0.0
+.TP
+.B class socketio.KafkaManager(url=\(aqkafka://localhost:9092\(aq, channel=\(aqsocketio\(aq, write_only=False)
+Kafka based client manager.
+.sp
+This class implements a Kafka backend for event sharing across multiple
+processes.
+.sp
+To use a Kafka backend, initialize the \fI\%Server\fP instance as
+follows:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+url = \(aqkafka://hostname:port\(aq
+server = socketio.Server(client_manager=socketio.KafkaManager(url))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBurl\fP \-\- The connection URL for the Kafka server. For a default Kafka
+store running on the same host, use \fBkafka://\fP\&.
+.IP \(bu 2
+\fBchannel\fP \-\- The channel name (topic) on which the server sends and
+receives notifications. Must be the same in all the
+servers.
+.IP \(bu 2
+\fBwrite_only\fP \-\- If set to \fBTrue\fP, only initialize to emit events. The
+default of \fBFalse\fP initializes the class for emitting
+and receiving.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS \fBAsyncManager\fP class
+.INDENT 0.0
+.TP
+.B class socketio.AsyncManager
+Manage a client list for an asyncio server.
+.INDENT 7.0
+.TP
+.B close_room(room, namespace)
+Remove all participants from a room.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B connect(sid, namespace)
+Register a client connection to a namespace.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B disconnect(sid, namespace)
+Register a client disconnect from a namespace.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B emit(event, data, namespace, room=None, skip_sid=None, callback=None, **kwargs)
+Emit a message to a single client, a room, or all the clients
+connected to the namespace.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B enter_room(sid, namespace, room)
+Add a client to a room.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_namespaces()
+Return an iterable with the active namespace names.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_participants(namespace, room)
+Return an iterable with the active participants in a room.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_rooms(sid, namespace)
+Return the rooms a client is in.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B initialize()
+Invoked before the first request is received. Subclasses can add
+their initialization code here.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B leave_room(sid, namespace, room)
+Remove a client from a room.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pre_disconnect(sid, namespace)
+Put the client in the to\-be\-disconnected list.
+.sp
+This allows the client data structures to be present while the
+disconnect handler is invoked, but still recognize the fact that the
+client is soon going away.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B trigger_callback(sid, namespace, id, data)
+Invoke an application callback.
+.sp
+Note: this method is a coroutine.
+.UNINDENT
+.UNINDENT
+.SS \fBAsyncRedisManager\fP class
+.INDENT 0.0
+.TP
+.B class socketio.AsyncRedisManager(url=\(aqredis://localhost:6379/0\(aq, channel=\(aqsocketio\(aq, write_only=False, logger=None)
+Redis based client manager for asyncio servers.
+.sp
+This class implements a Redis backend for event sharing across multiple
+processes. Only kept here as one more example of how to build a custom
+backend, since the kombu backend is perfectly adequate to support a Redis
+message queue.
+.sp
+To use a Redis backend, initialize the \fI\%Server\fP instance as
+follows:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+server = socketio.Server(client_manager=socketio.AsyncRedisManager(
+    \(aqredis://hostname:port/0\(aq))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBurl\fP \-\- The connection URL for the Redis server. For a default Redis
+store running on the same host, use \fBredis://\fP\&.  To use an
+SSL connection, use \fBrediss://\fP\&.
+.IP \(bu 2
+\fBchannel\fP \-\- The channel name on which the server sends and receives
+notifications. Must be the same in all the servers.
+.IP \(bu 2
+\fBwrite_only\fP \-\- If set to \fBTrue\fP, only initialize to emit events. The
+default of \fBFalse\fP initializes the class for emitting
+and receiving.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS \fBAsyncAioPikaManager\fP class
+.INDENT 0.0
+.TP
+.B class socketio.AsyncAioPikaManager(url=\(aqamqp://guest:guest@localhost:5672//\(aq, channel=\(aqsocketio\(aq, write_only=False, logger=None)
+Client manager that uses aio_pika for inter\-process messaging under
+asyncio.
+.sp
+This class implements a client manager backend for event sharing across
+multiple processes, using RabbitMQ
+.sp
+To use a aio_pika backend, initialize the \fI\%Server\fP instance as
+follows:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+url = \(aqamqp://user:password@hostname:port//\(aq
+server = socketio.Server(client_manager=socketio.AsyncAioPikaManager(
+    url))
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBurl\fP \-\- The connection URL for the backend messaging queue. Example
+connection URLs are \fB\(aqamqp://guest:guest@localhost:5672//\(aq\fP
+for RabbitMQ.
+.IP \(bu 2
+\fBchannel\fP \-\- The channel name on which the server sends and receives
+notifications. Must be the same in all the servers.
+With this manager, the channel name is the exchange name
+in rabbitmq
+.IP \(bu 2
+\fBwrite_only\fP \-\- If set to \fBTrue\fP, only initialize to emit events. The
+default of \fBFalse\fP initializes the class for emitting
+and receiving.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+genindex
+.IP \(bu 2
+modindex
+.IP \(bu 2
+search
+.UNINDENT
+.SH AUTHOR
+Miguel Grinberg
+.SH COPYRIGHT
+2018, Miguel Grinberg
+.\" Generated by docutils manpage writer.
+.

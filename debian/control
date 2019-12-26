@@ -1,0 +1,72 @@
+Source: python-socketio
+Section: python
+Priority: optional
+Maintainer: Paulo Henrique de Lima Santana (phls) <phls@debian.org>
+Build-Depends: debhelper-compat (= 12),
+               dh-python,
+               python3,
+               python3-aiohttp,
+               python3-all,
+               python3-coverage,
+               python3-engineio,
+               python3-mock,
+               python3-requests,
+               python3-setuptools,
+               python3-six,
+               python3-sphinx,
+               python3-websocket,
+               python3-websockets,
+X-Python3-Version: >= 3.7
+Standards-Version: 4.4.1
+Rules-Requires-Root: no
+Homepage: https://pypi.org/project/python-socketio
+Vcs-Browser: https://salsa.debian.org/debian/python-socketio
+Vcs-Git: https://salsa.debian.org/debian/python-socketio.git
+
+Package: python3-socketio
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}
+Description: python3 implementation of the Socket.IO realtime client and server
+ Socket.IO is a transport protocol that enables real-time bidirectional
+ event-based communication between clients (typically, though not always,
+ web browsers) and a server. The official implementations of the client and
+ server components are written in JavaScript. This package provides Python
+ implementations of both, each with standard and asyncio variants.
+ .
+ Client Features:
+ .
+ Can connect to other Socket.IO compliant servers besides the one in this
+ package.
+ Compatible with Python 3.5+.
+ Two versions of the client, one for standard Python and another for asyncio.
+ Uses an event-based architecture implemented with decorators that hides the
+ details of the protocol.
+ Implements HTTP long-polling and WebSocket transports.
+ Automatically reconnects to the server if the connection is dropped.
+ .
+ Server Features:
+ .
+ Can connect to servers running other compliant Socket.IO clients besides the
+ one in this package.
+ Compatible with Python 3.5+.
+ Two versions of the server, one for standard Python and another for asyncio.
+ Supports large number of clients even on modest hardware due to being
+ asynchronous.
+ Can be hosted on any WSGI and ASGI web servers includind Gunicorn, Uvicorn,
+ eventlet and gevent.
+ Can be integrated with WSGI applications written in frameworks such as
+ Flask, Django, etc.
+ Can be integrated with aiohttp, sanic and tornado asyncio applications.
+ Broadcasting of messages to all connected clients, or to subsets of them
+ assigned to rooms.
+ Optional support for multiple servers, connected through a messaging queue
+ such as Redis or RabbitMQ.
+ Send messages to clients from external processes, such as Celery workers or
+ auxiliary scripts.
+ Event-based architecture implemented with decorators that hides the details
+ of the protocol.
+ Support for HTTP long-polling and WebSocket transports.
+ Support for XHR2 and XHR browsers.
+ Support for text and binary messages.
+ Support for gzip and deflate HTTP compression.
+ Configurable CORS responses, to avoid cross-origin problems with browsers.

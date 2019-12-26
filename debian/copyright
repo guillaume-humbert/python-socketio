@@ -1,0 +1,66 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: python-socketio
+Upstream-Contact: miguelgrinberg50@gmail.com
+Source: https://pypi.python.org/pypi/python_socketio
+Comment: Repository on GitHub: https://github.com/miguelgrinberg/python-socketio
+
+Files: MANIFEST.in
+       PKG-INFO
+       python_socketio.egg-info/dependency_links.txt
+       python_socketio.egg-info/not-zip-safe
+       python_socketio.egg-info/PKG-INFO
+       python_socketio.egg-info/requires.txt
+       python_socketio.egg-info/SOURCES.txt
+       python_socketio.egg-info/top_level.txt
+       README.rst
+       setup.cfg
+       setup.py
+       socketio/asgi.py
+       socketio/asyncio_aiopika_manager.py
+       socketio/asyncio_client.py
+       socketio/asyncio_manager.py
+       socketio/asyncio_namespace.py
+       socketio/asyncio_pubsub_manager.py
+       socketio/asyncio_redis_manager.py
+       socketio/asyncio_server.py
+       socketio/base_manager.py
+       socketio/client.py
+       socketio/exceptions.py
+       socketio/__init__.py
+       socketio/kafka_manager.py
+       socketio/kombu_manager.py
+       socketio/middleware.py
+       socketio/namespace.py
+       socketio/packet.py
+       socketio/pubsub_manager.py
+       socketio/redis_manager.py
+       socketio/server.py
+       socketio/tornado.py
+       socketio/zmq_manager.py
+Copyright: 2015-2019, Miguel Grinberg <miguelgrinberg50@gmail.com>
+License: MIT
+Comment:
+ Using license as found in LICENSE file.
+
+Files: debian/*
+Copyright: 2019, Paulo Henrique de Lima Santana (phls) <phls@debian.org>
+License: MIT
+
+License: MIT
+ Permission is hereby granted, free of charge, to any person obtaining a
+ copy of this software and associated documentation files (the "Software"),
+ to deal in the Software without restriction, including without limitation
+ the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to whom the
+ Software is furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included
+ in all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
