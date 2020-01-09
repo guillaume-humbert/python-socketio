@@ -1,3 +1,10 @@
+python-socketio (4.4.0-2) unstable; urgency=medium
+
+  * debian/copyright: updated packaging copyright years.
+  * debian/watch: removed dversionmangle line.
+
+ -- Paulo Henrique de Lima Santana (phls) <phls@debian.org>  Thu, 09 Jan 2020 22:32:00 +0300
+
 python-socketio (4.4.0-1) unstable; urgency=medium
 
   * Initial release (Closes: #947447).

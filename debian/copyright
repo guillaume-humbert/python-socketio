@@ -43,7 +43,7 @@ Comment:
  Using license as found in LICENSE file.
 
 Files: debian/*
-Copyright: 2019, Paulo Henrique de Lima Santana (phls) <phls@debian.org>
+Copyright: 2019-2020, Paulo Henrique de Lima Santana (phls) <phls@debian.org>
 License: MIT
 
 License: MIT
