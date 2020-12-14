@@ -2,9 +2,9 @@ import itertools
 import logging
 import random
 import signal
+import threading
 
 import engineio
-import six
 
 from . import exceptions
 from . import namespace
@@ -22,10 +22,14 @@ def signal_handler(sig, frame):  # pragma: no cover
     """
     for client in reconnecting_clients[:]:
         client._reconnect_abort.set()
-    return original_signal_handler(sig, frame)
+    if callable(original_signal_handler):
+        return original_signal_handler(sig, frame)
+    else:  # pragma: no cover
+        # Handle case where no original SIGINT handler was present.
+        return signal.default_int_handler(sig, frame)
 
 
-original_signal_handler = signal.signal(signal.SIGINT, signal_handler)
+original_signal_handler = None
 
 
 class Client(object):
@@ -51,13 +55,8 @@ class Client(object):
                                  adjusted by +/- 50%.
     :param logger: To enable logging set to ``True`` or pass a logger object to
                    use. To disable logging set to ``False``. The default is
-                   ``False``.
-    :param binary: ``True`` to support binary payloads, ``False`` to treat all
-                   payloads as text. On Python 2, if this is set to ``True``,
-                   ``unicode`` values are treated as text, and ``str`` and
-                   ``bytes`` values are treated as binary.  This option has no
-                   effect on Python 3, where text and binary payloads are
-                   always automatically discovered.
+                   ``False``. Note that fatal errors are logged even when
+                   ``logger`` is ``False``.
     :param json: An alternative json module to use for encoding and decoding
                  packets. Custom json modules must have ``dumps`` and ``loads``
                  functions that are compatible with the standard library
@@ -73,18 +72,23 @@ class Client(object):
                        The default is ``True``.
     :param engineio_logger: To enable Engine.IO logging set to ``True`` or pass
                             a logger object to use. To disable logging set to
-                            ``False``. The default is ``False``.
+                            ``False``. The default is ``False``. Note that
+                            fatal errors are logged even when
+                            ``engineio_logger`` is ``False``.
     """
     def __init__(self, reconnection=True, reconnection_attempts=0,
                  reconnection_delay=1, reconnection_delay_max=5,
-                 randomization_factor=0.5, logger=False, binary=False,
-                 json=None, **kwargs):
+                 randomization_factor=0.5, logger=False, json=None, **kwargs):
+        global original_signal_handler
+        if original_signal_handler is None and \
+                threading.current_thread() == threading.main_thread():
+            original_signal_handler = signal.signal(signal.SIGINT,
+                                                    signal_handler)
         self.reconnection = reconnection
         self.reconnection_attempts = reconnection_attempts
         self.reconnection_delay = reconnection_delay
         self.reconnection_delay_max = reconnection_delay_max
         self.randomization_factor = randomization_factor
-        self.binary = binary
 
         engineio_options = kwargs
         engineio_logger = engineio_options.pop('engineio_logger', None)
@@ -103,8 +107,7 @@ class Client(object):
             self.logger = logger
         else:
             self.logger = default_logger
-            if not logging.root.handlers and \
-                    self.logger.level == logging.NOTSET:
+            if self.logger.level == logging.NOTSET:
                 if logger:
                     self.logger.setLevel(logging.INFO)
                 else:
@@ -114,12 +117,12 @@ class Client(object):
         self.connection_url = None
         self.connection_headers = None
         self.connection_transports = None
-        self.connection_namespaces = None
+        self.connection_namespaces = []
         self.socketio_path = None
         self.sid = None
 
         self.connected = False
-        self.namespaces = []
+        self.namespaces = {}
         self.handlers = {}
         self.namespace_handlers = {}
         self.callbacks = {}
@@ -237,13 +240,16 @@ class Client(object):
                            are ``'polling'`` and ``'websocket'``. If not
                            given, the polling transport is connected first,
                            then an upgrade to websocket is attempted.
-        :param namespaces: The list of custom namespaces to connect, in
-                           addition to the default namespace. If not given,
-                           the namespace list is obtained from the registered
-                           event handlers.
+        :param namespaces: The namespaces to connect as a string or list of
+                           strings. If not given, the namespaces that have
+                           registered event handlers are connected.
         :param socketio_path: The endpoint where the Socket.IO server is
                               installed. The default value is appropriate for
                               most cases.
+
+        Note: The connection mechannism occurs in the background and will
+        complete at some point after this function returns. The connection
+        will be established when the ``connect`` event is invoked.
 
         Example usage::
 
@@ -257,17 +263,21 @@ class Client(object):
         self.socketio_path = socketio_path
 
         if namespaces is None:
-            namespaces = set(self.handlers.keys()).union(
-                set(self.namespace_handlers.keys()))
-        elif isinstance(namespaces, six.string_types):
+            namespaces = list(set(self.handlers.keys()).union(
+                set(self.namespace_handlers.keys())))
+            if len(namespaces) == 0:
+                namespaces = ['/']
+        elif isinstance(namespaces, str):
             namespaces = [namespaces]
-            self.connection_namespaces = namespaces
-        self.namespaces = [n for n in namespaces if n != '/']
+        self.connection_namespaces = namespaces
         try:
             self.eio.connect(url, headers=headers, transports=transports,
                              engineio_path=socketio_path)
         except engineio.exceptions.ConnectionError as exc:
-            six.raise_from(exceptions.ConnectionError(exc.args[0]), None)
+            self._trigger_event(
+                'connect_error', '/',
+                exc.args[1] if len(exc.args) > 1 else exc.args[0])
+            raise exceptions.ConnectionError(exc.args[0]) from None
         self.connected = True
 
     def wait(self):
@@ -291,20 +301,26 @@ class Client(object):
         :param event: The event name. It can be any string. The event names
                       ``'connect'``, ``'message'`` and ``'disconnect'`` are
                       reserved and should not be used.
-        :param data: The data to send to the client or clients. Data can be of
-                     type ``str``, ``bytes``, ``list`` or ``dict``. If a
-                     ``list`` or ``dict``, the data will be serialized as JSON.
+        :param data: The data to send to the server. Data can be of
+                     type ``str``, ``bytes``, ``list`` or ``dict``. To send
+                     multiple arguments, use a tuple where each element is of
+                     one of the types indicated above.
         :param namespace: The Socket.IO namespace for the event. If this
                           argument is omitted the event is emitted to the
                           default namespace.
         :param callback: If given, this function will be called to acknowledge
-                         the the client has received the message. The arguments
+                         the the server has received the message. The arguments
                          that will be passed to the function are those provided
-                         by the client. Callback functions can only be used
-                         when addressing an individual client.
+                         by the server.
+
+        Note: this method is not thread safe. If multiple threads are emitting
+        at the same time on the same client connection, messages composed of
+        multiple packets may end up being sent in an incorrect sequence. Use
+        standard concurrency solutions (such as a Lock object) to prevent this
+        situation.
         """
         namespace = namespace or '/'
-        if namespace != '/' and namespace not in self.namespaces:
+        if namespace not in self.namespaces:
             raise exceptions.BadNamespaceError(
                 namespace + ' is not a connected namespace.')
         self.logger.info('Emitting event "%s" [%s]', event, namespace)
@@ -312,10 +328,6 @@ class Client(object):
             id = self._generate_ack_id(namespace, callback)
         else:
             id = None
-        if six.PY2 and not self.binary:
-            binary = False  # pragma: nocover
-        else:
-            binary = None
         # tuples are expanded to multiple arguments, everything else is sent
         # as a single argument
         if isinstance(data, tuple):
@@ -325,8 +337,7 @@ class Client(object):
         else:
             data = []
         self._send_packet(packet.Packet(packet.EVENT, namespace=namespace,
-                                        data=[event] + data, id=id,
-                                        binary=binary))
+                                        data=[event] + data, id=id))
 
     def send(self, data, namespace=None, callback=None):
         """Send a message to one or more connected clients.
@@ -334,17 +345,17 @@ class Client(object):
         This function emits an event with the name ``'message'``. Use
         :func:`emit` to issue custom event names.
 
-        :param data: The data to send to the client or clients. Data can be of
-                     type ``str``, ``bytes``, ``list`` or ``dict``. If a
-                     ``list`` or ``dict``, the data will be serialized as JSON.
+        :param data: The data to send to the server. Data can be of
+                     type ``str``, ``bytes``, ``list`` or ``dict``. To send
+                     multiple arguments, use a tuple where each element is of
+                     one of the types indicated above.
         :param namespace: The Socket.IO namespace for the event. If this
                           argument is omitted the event is emitted to the
                           default namespace.
         :param callback: If given, this function will be called to acknowledge
-                         the the client has received the message. The arguments
+                         the the server has received the message. The arguments
                          that will be passed to the function are those provided
-                         by the client. Callback functions can only be used
-                         when addressing an individual client.
+                         by the server.
         """
         self.emit('message', data=data, namespace=namespace,
                   callback=callback)
@@ -355,15 +366,22 @@ class Client(object):
         :param event: The event name. It can be any string. The event names
                       ``'connect'``, ``'message'`` and ``'disconnect'`` are
                       reserved and should not be used.
-        :param data: The data to send to the client or clients. Data can be of
-                     type ``str``, ``bytes``, ``list`` or ``dict``. If a
-                     ``list`` or ``dict``, the data will be serialized as JSON.
+        :param data: The data to send to the server. Data can be of
+                     type ``str``, ``bytes``, ``list`` or ``dict``. To send
+                     multiple arguments, use a tuple where each element is of
+                     one of the types indicated above.
         :param namespace: The Socket.IO namespace for the event. If this
                           argument is omitted the event is emitted to the
                           default namespace.
         :param timeout: The waiting timeout. If the timeout is reached before
                         the client acknowledges the event, then a
                         ``TimeoutError`` exception is raised.
+
+        Note: this method is not thread safe. If multiple threads are emitting
+        at the same time on the same client connection, messages composed of
+        multiple packets may end up being sent in an incorrect sequence. Use
+        standard concurrency solutions (such as a Lock object) to prevent this
+        situation.
         """
         callback_event = self.eio.create_event()
         callback_args = []
@@ -386,10 +404,22 @@ class Client(object):
         # later in _handle_eio_disconnect we invoke the disconnect handler
         for n in self.namespaces:
             self._send_packet(packet.Packet(packet.DISCONNECT, namespace=n))
-        self._send_packet(packet.Packet(
-            packet.DISCONNECT, namespace='/'))
         self.connected = False
         self.eio.disconnect(abort=True)
+
+    def get_sid(self, namespace=None):
+        """Return the ``sid`` associated with a connection.
+
+        :param namespace: The Socket.IO namespace. If this argument is omitted
+                          the handler is associated with the default
+                          namespace. Note that unlike previous versions, the
+                          current version of the Socket.IO protocol uses
+                          different ``sid`` values per namespace.
+
+        This method returns the ``sid`` for the requested namespace as a
+        string.
+        """
+        return self.namespaces.get(namespace or '/')
 
     def transport(self):
         """Return the name of the transport used by the client.
@@ -430,45 +460,37 @@ class Client(object):
         """Send a Socket.IO packet to the server."""
         encoded_packet = pkt.encode()
         if isinstance(encoded_packet, list):
-            binary = False
             for ep in encoded_packet:
-                self.eio.send(ep, binary=binary)
-                binary = True
+                self.eio.send(ep)
         else:
-            self.eio.send(encoded_packet, binary=False)
+            self.eio.send(encoded_packet)
 
     def _generate_ack_id(self, namespace, callback):
         """Generate a unique identifier for an ACK packet."""
         namespace = namespace or '/'
         if namespace not in self.callbacks:
             self.callbacks[namespace] = {0: itertools.count(1)}
-        id = six.next(self.callbacks[namespace][0])
+        id = next(self.callbacks[namespace][0])
         self.callbacks[namespace][id] = callback
         return id
 
-    def _handle_connect(self, namespace):
+    def _handle_connect(self, namespace, data):
         namespace = namespace or '/'
-        self.logger.info('Namespace {} is connected'.format(namespace))
-        self._trigger_event('connect', namespace=namespace)
-        if namespace == '/':
-            for n in self.namespaces:
-                self._send_packet(packet.Packet(packet.CONNECT, namespace=n))
-        elif namespace not in self.namespaces:
-            self.namespaces.append(namespace)
+        if namespace not in self.namespaces:
+            self.logger.info('Namespace {} is connected'.format(namespace))
+            self.namespaces[namespace] = (data or {}).get('sid', self.sid)
+            self._trigger_event('connect', namespace=namespace)
 
     def _handle_disconnect(self, namespace):
         if not self.connected:
             return
         namespace = namespace or '/'
-        if namespace == '/':
-            for n in self.namespaces:
-                self._trigger_event('disconnect', namespace=n)
-            self.namespaces = []
         self._trigger_event('disconnect', namespace=namespace)
         if namespace in self.namespaces:
-            self.namespaces.remove(namespace)
-        if namespace == '/':
+            del self.namespaces[namespace]
+        if not self.namespaces:
             self.connected = False
+            self.eio.disconnect(abort=True)
 
     def _handle_event(self, namespace, id, data):
         namespace = namespace or '/'
@@ -483,12 +505,8 @@ class Client(object):
                 data = list(r)
             else:
                 data = [r]
-            if six.PY2 and not self.binary:
-                binary = False  # pragma: nocover
-            else:
-                binary = None
             self._send_packet(packet.Packet(packet.ACK, namespace=namespace,
-                              id=id, data=data, binary=binary))
+                              id=id, data=data))
 
     def _handle_ack(self, namespace, id, data):
         namespace = namespace or '/'
@@ -514,9 +532,9 @@ class Client(object):
             data = (data,)
         self._trigger_event('connect_error', namespace, *data)
         if namespace in self.namespaces:
-            self.namespaces.remove(namespace)
+            del self.namespaces[namespace]
         if namespace == '/':
-            self.namespaces = []
+            self.namespaces = {}
             self.connected = False
 
     def _trigger_event(self, event, namespace, *args):
@@ -571,6 +589,8 @@ class Client(object):
         """Handle the Engine.IO connection event."""
         self.logger.info('Engine.IO connection established')
         self.sid = self.eio.sid
+        for n in self.connection_namespaces:
+            self._send_packet(packet.Packet(packet.CONNECT, namespace=n))
 
     def _handle_eio_message(self, data):
         """Dispatch Engine.IO messages."""
@@ -585,7 +605,7 @@ class Client(object):
         else:
             pkt = packet.Packet(encoded_packet=data)
             if pkt.packet_type == packet.CONNECT:
-                self._handle_connect(pkt.namespace)
+                self._handle_connect(pkt.namespace, pkt.data)
             elif pkt.packet_type == packet.DISCONNECT:
                 self._handle_disconnect(pkt.namespace)
             elif pkt.packet_type == packet.EVENT:
@@ -595,7 +615,7 @@ class Client(object):
             elif pkt.packet_type == packet.BINARY_EVENT or \
                     pkt.packet_type == packet.BINARY_ACK:
                 self._binary_packet = pkt
-            elif pkt.packet_type == packet.ERROR:
+            elif pkt.packet_type == packet.CONNECT_ERROR:
                 self._handle_error(pkt.namespace, pkt.data)
             else:
                 raise ValueError('Unknown packet type.')
@@ -606,8 +626,7 @@ class Client(object):
         if self.connected:
             for n in self.namespaces:
                 self._trigger_event('disconnect', namespace=n)
-            self._trigger_event('disconnect', namespace='/')
-            self.namespaces = []
+            self.namespaces = {}
             self.connected = False
         self.callbacks = {}
         self._binary_packet = None
