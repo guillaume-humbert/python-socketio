@@ -1,3 +1,9 @@
+python-socketio (5.0.3-1) focal; urgency=medium
+
+  * Update for new version.
+
+ -- Guillaume J Humbert <guillaume.j.humbert@pm.me>  Tue, 15 Dec 2020 06:12:18 +0800
+
 python-socketio (4.4.0-2) unstable; urgency=medium
 
   * debian/copyright: updated packaging copyright years.
